@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Breaking the Vicious Cycle: Coherent 3D Gaussian Splatting from Sparse and Motion-Blurred View">
+  <meta name="keywords" content="3D Gaussian Splatting, Sparse View, Motion Blur">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Breaking the Vicious Cycle: Coherent 3D Gaussian Splatting from Sparse and Motion-Blurred View</title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-2 publication-title">Breaking the Vicious Cycle: Coherent 3D Gaussian Splatting from Sparse and Motion-Blurred View</h1>
+          <div class="is-size-4 publication-authors">
+            <span class="author-block" style="color:red">Under Review by IEEE T-CSVT</span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              Chaoran Feng<sup>*</sup>,</span>
+            <span class="author-block">
+              Zhankuo Xu<sup>*</sup>,</span>
+            <span class="author-block">
+              Yingtao Li,
+            </span>
+            <span class="author-block">
+              Jianbin Zhao,
+            </span>
+            <span class="author-block">
+              Jiashu Yang,
+            </span>
+            <span class="author-block">
+              Wangbo Yu,
+            </span>
+            <br>
+            <span class="author-block">
+              Li Yuan,
+            </span>
+            <span class="author-block">
+              Yonghong Tian
+            </span>
+          </div>
+          
+          <br/>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">School of Electronic Engineering, Peking University</span> 
+            <!-- <span class="author-block"><sup>2</sup>School of Future Technology, Dalian University of Technology</span> -->
+          </div>
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <span class="link-block">
+                <a href=""
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              <!-- Appendix Link. -->
+              <span class="link-block">
+                <a href=""
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="far fa-images"></i>
+                  </span>
+                  <span>Appendix</span>
+                </a>
+              </span>
+              <!-- Video Link. -->
+              <span class="link-block">
+                <a href="https://youtu.be/lFstKQV-1jc"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-youtube"></i>
+                  </span>
+                  <span>Video</span>
+                </a>
+              </span>
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/Zhao-Yian/TuneYourStyle"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                  </a>
+              </span>
+              <!-- Demo Link. -->
+              <!-- <span class="link-block">
+                <a href=""
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="ai ai-arxiv"></i>
+                  </span>
+                  <span>Demo</span>
+                  </a>
+              </span> -->
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Abstract</h2>
+          <div>
+            <img width="1000" src="./static/images/teaser.jpg"
+                 class="interpolation-image"
+                 alt="Interpolate motivation image."/>
+          </div>
+        <br />
+        <div class="content has-text-justified">
+          <p>
+          3D Gaussian Splatting (3DGS) has emerged as a state-of-the-art method for novel view synthesis. However, its performance heavily relies on dense, high-quality input imagery, an assumption that is often violated in real-world applications, where data is typically sparse and motion-blurred.
+          These two issues create a vicious cycle: sparse views lack the multi-view constraints necessary to resolve motion blur, while the blur itself erases high-frequency details crucial for aligning the limited views. As a result, reconstruction often fails catastrophically, with fragmented views and a low-frequency bias.
+          To break this cycle, we introduce CoherentGS, a novel framework for high-fidelity 3D reconstruction from sparse and blurry images. Our key insight is to address these compound degradations using a dual-prior strategy. We combine two pre-trained generative models: a specialized deblurring network for restoring sharp details and providing photometric guidance, and a diffusion model that offers geometric priors to fill in unobserved regions of the scene.
+          This dual-prior strategy is supported by several key techniques, including a consistency-guided camera exploration module that adaptively guides the generative process, and a depth regularization loss that ensures geometric plausibility.
+          We evaluate CoherentGS through both quantitative and qualitative experiments on synthetic and real-world scenes, using as few as 3, 6, and 9 input views. Our results demonstrate that CoherentGS significantly outperforms existing methods, setting a new state-of-the-art for this challenging task.
+          </p>
+        </div>
+      </div>
+    </div>
+    <br />
+    <!--/ Overview. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+          <h2 class="title is-3">Method</h2>
+          <div class="columns is-centered interpolation-panel">
+            <div class="column is-12">
+              <img height="500" src="./static/images/pipeline.jpg"
+                   class="interpolation-image"
+                   alt="Interpolate overview image."/>
+            </div>
+          </div>
+        <div class="content has-text-justified">
+          <p>
+            <b>The overview of our CoherentGS framework</b>. It employs a dual-prior strategy for joint 3D reconstruction and enhancement.
+            <b>(Left)</b> From sparse and blurry inputs, we first estimate initial camera poses and initialize a coarse 3DGS model. 
+            The model is then progressively refined through two parallel supervisory branches:
+            <b>(Top) Photometric Restoration via Deblurring Priors:</b> This branch tackles motion blur. It explicitly models the camera's exposure trajectory to render a <i>simulated blurry image</i>, supervised against the real input via a reconstruction loss. Concurrently, it uses a pre-trained image deblurring model to create a sharp target, and a perceptual loss distills this deblurring knowledge into a rendered sharp view.
+            <b>(Bottom) Geometric Guidance via Repair Diffusion Priors:</b> This branch addresses sparsity by exploring novel viewpoints in under-observed regions. A sharp image rendered from a new pose is enhanced by a powerful diffusion model, and a score distillation loss guides the 3DGS to align with this repaired view.
+            Throughout the process, a depth smoothness loss is also applied to ensure geometric consistency.
+          </p>
+        </div>
+
+        <div class="columns is-centered interpolation-panel">
+            <div class="column is-12">
+          </div>
+        </div>
+        <div class="content has-text-justified">
+          <p> 
+          </p>
+        </div>
+      </div>
+    </div>
+    <br />
+    <!-- Paper video. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Video</h2>
+        <div class="publication-video">
+         <iframe width="560" height="315" src="https://www.youtube.com/embed/lFstKQV-1jc?si=9Jyc2_3d93qyuehh" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </div>
+      </div>
+    </div>
+    <!--/ Paper video. -->
+    <br />
+
+    <!--/ Overview. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Qualitative Results</h2>
+
+      <h3 class="title is-4">Comparison with 3DGS-based Methods.</h3>
+      <div class="columns is-centered interpolation-panel">
+        <div class="column is-4">
+          <video autoplay muted loop playsinline height="100%">
+            <source src="./static/videos/video1.mp4" type="video/mp4">
+          </video>
+          <p class="has-text-centered">Method 1</p>
+        </div>
+        <div class="column is-4">
+          <video autoplay muted loop playsinline height="100%">
+            <source src="./static/videos/video1.mp4" type="video/mp4">
+          </video>
+          <p class="has-text-centered">Method 2</p>
+        </div>
+        <div class="column is-4">
+          <video autoplay muted loop playsinline height="100%">
+            <source src="./static/videos/video1.mp4" type="video/mp4">
+          </video>
+          <p class="has-text-centered">Ours</p>
+        </div>
+      </div>
+      <br />
+
+      <h3 class="title is-4">Comparison with NeRF-based Methods.</h3>
+      <div class="columns is-centered interpolation-panel">
+        <div class="column is-4">
+          <video autoplay muted loop playsinline height="100%">
+            <source src="./static/videos/video2.mp4" type="video/mp4">
+          </video>
+          <p class="has-text-centered">NeRF Method 1</p>
+        </div>
+        <div class="column is-4">
+          <video autoplay muted loop playsinline height="100%">
+            <source src="./static/videos/video2.mp4" type="video/mp4">
+          </video>
+          <p class="has-text-centered">NeRF Method 2</p>
+        </div>
+        <div class="column is-4">
+          <video autoplay muted loop playsinline height="100%">
+            <source src="./static/videos/video2.mp4" type="video/mp4">
+          </video>
+          <p class="has-text-centered">Ours</p>
+        </div>
+      </div>
+
+        <br />
+          <div>
+            <h3 class="title is-4">Qualitative results of novel view synthesis.</h3>
+            <div class="columns is-centered interpolation-panel">
+              <div class="column is-12">
+                <img height="500" src="./static/images/tunable.png"
+                     alt="Interpolate manipulation image."/>
+              </div>
+          </div>
+      </div>
+      <br />
+      <div>
+        <div class="columns is-centered interpolation-panel">
+          <div class="column is-12">
+            <img height="500" src="./static/images/more_tunable.png"
+                 alt="Interpolate comparison image."/>
+          </div>
+      </div>
+  </div>
+        <br />
+      <div>
+        <div class="columns is-centered interpolation-panel">
+          <div class="column is-12">
+            <img height="500" src="./static/images/combination.png"
+                 alt="Interpolate comparison image."/>
+          </div>
+      </div>
+  </div>
+    </div>
+
+  </div>
+</section>
+
+<!--<section class="section" id="BibTeX">-->
+<!--  <div class="container is-max-desktop content">-->
+<!--    <h2 class="title">BibTeX</h2>-->
+<!--    <pre><code>@article{park2021nerfies,-->
+<!--  author    = {Park, Keunhong and Sinha, Utkarsh and Barron, Jonathan T. and Bouaziz, Sofien and Goldman, Dan B and Seitz, Steven M. and Martin-Brualla, Ricardo},-->
+<!--  title     = {Nerfies: Deformable Neural Radiance Fields},-->
+<!--  journal   = {ICCV},-->
+<!--  year      = {2021},-->
+<!--}</code></pre>-->
+<!--  </div>-->
+<!--</section>-->
+
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This website is licensed under a <a rel="license"
+                                                href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+          <p>
+            The source code is based on the <a href="https://nerfies.github.io/">Nerfies</a> project page. We thank the authors for creating and opening it.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
