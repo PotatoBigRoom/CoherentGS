@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Breaking the Vicious Cycle: Coherent 3D Gaussian Splatting from Sparse and Motion-Blurred View">
+  <meta name="keywords" content="3D Gaussian Splatting, Sparse View, Motion Blur">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CoherentGS: Future of 3D Reconstruction</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+
+  <!-- CSS Libs -->
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+
+  <!-- JS Libs -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #050505;
+      --bg-gradient: radial-gradient(circle at center, #0f1525 0%, #000000 100%);
+      --text-main: #e0e6ed;
+      --text-muted: #94a3b8;
+      --panel-bg: rgba(10, 15, 30, 0.75);
+      --panel-border: rgba(0, 243, 255, 0.15);
+      
+      --accent-cyan: #00f3ff;
+      --accent-purple: #bc13fe;
+      --accent-blue: #0b4eff;
+      
+      --scanline-color: rgba(18, 16, 16, 0); 
+      --scanline-overlay: rgba(0, 0, 0, 0.25);
+      
+      --button-bg: rgba(0, 0, 0, 0.6);
+      --button-hover: #00f3ff;
+      --button-text-hover: #000;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg-color: #f4f7f9;
+        --bg-gradient: radial-gradient(circle at center, #ffffff 0%, #eef2f5 100%);
+        --text-main: #1a202c;
+        --text-muted: #4a5568;
+        --panel-bg: rgba(255, 255, 255, 0.85);
+        --panel-border: rgba(11, 78, 255, 0.2);
+        
+        --accent-cyan: #0070f3;
+        --accent-purple: #7928ca;
+        --accent-blue: #0056b3;
+        
+        --scanline-color: rgba(255, 255, 255, 0);
+        --scanline-overlay: rgba(0, 0, 0, 0.05);
+
+        --button-bg: rgba(255, 255, 255, 0.8);
+        --button-hover: #0070f3;
+        --button-text-hover: #fff;
+      }
+    }
+
+    body {
+      font-family: 'Rajdhani', 'Inter', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      overflow-x: hidden;
+      position: relative;
+      transition: background-color 0.5s ease, color 0.5s ease;
+    }
+
+    #canvas-container {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: -1;
+      background: var(--bg-gradient);
+      transition: background 0.5s ease;
+    }
+
+    h1, h2, h3, .title {
+      font-family: 'Orbitron', sans-serif !important;
+      color: var(--text-main) !important;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .publication-title {
+      font-weight: 900;
+      font-size: clamp(1.5rem, 4vw, 2.5rem) !important;
+      white-space: nowrap;
+      background: linear-gradient(90deg, var(--text-main), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      position: relative;
+      display: inline-block;
+      margin-bottom: 0.5rem !important;
+      line-height: 1.2;
+    }
+
+    @media screen and (max-width: 768px) {
+      .publication-title { white-space: normal; font-size: 2rem !important; }
+    }
+
+    .glitch-effect { position: relative; }
+    .glitch-effect::before, .glitch-effect::after {
+      content: attr(data-text);
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg-color);
+      -webkit-text-fill-color: var(--text-main);
+    }
+    .glitch-effect::before {
+      left: 2px; text-shadow: -1px 0 #ff0000;
+      clip: rect(24px, 9999px, 40px, 0);
+      animation: glitch-anim-2 3s infinite linear alternate-reverse;
+    }
+    .glitch-effect::after {
+      left: -2px; text-shadow: -1px 0 #0000ff;
+      clip: rect(15px, 9999px, 30px, 0);
+      animation: glitch-anim-1 2s infinite linear alternate-reverse;
+    }
+    @keyframes glitch-anim-1 {
+      0% { clip: rect(5px, 9999px, 15px, 0); }
+      100% { clip: rect(20px, 9999px, 30px, 0); }
+    }
+    @keyframes glitch-anim-2 {
+      0% { clip: rect(30px, 9999px, 35px, 0); }
+      100% { clip: rect(25px, 9999px, 30px, 0); }
+    }
+
+    .highlight-cyan { color: var(--accent-cyan); font-weight: bold; }
+    .highlight-purple { color: var(--accent-purple); font-weight: bold; }
+
+    .box-style {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 4px;
+      padding: 2.5rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .box-style::before, .box-style::after {
+      content: ''; position: absolute; width: 15px; height: 15px;
+      transition: all 0.3s ease; pointer-events: none;
+    }
+    .box-style::before { top: 0; left: 0; border-top: 2px solid var(--accent-cyan); border-left: 2px solid var(--accent-cyan); }
+    .box-style::after { bottom: 0; right: 0; border-bottom: 2px solid var(--accent-purple); border-right: 2px solid var(--accent-purple); }
+
+    .scene-tabs-container {
+        display: flex; justify-content: center; align-items: center;
+        gap: 15px; margin-bottom: 2rem; flex-wrap: wrap;
+    }
+    .scene-btn {
+        width: 80px; height: 80px;
+        border: 2px solid var(--panel-border);
+        border-radius: 8px; cursor: pointer;
+        overflow: hidden; opacity: 0.6; transition: all 0.3s;
+        position: relative;
+    }
+    .scene-btn img { width: 100%; height: 100%; object-fit: cover; }
+    .scene-btn.active, .scene-btn:hover {
+        opacity: 1; border-color: var(--accent-cyan);
+        box-shadow: 0 0 15px var(--accent-cyan); transform: scale(1.1);
+    }
+
+    .video-compare-container {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%; 
+        overflow: hidden;
+        border-radius: 8px;
+        background: #000;
+        border: 1px solid var(--panel-border);
+        cursor: col-resize;
+        margin-bottom: 1rem;
+    }
+    .video-compare-container video {
+        position: absolute; top: 0; left: 0;
+        width: 100%; height: 100%;
+        object-fit: cover; display: block;
+        margin: 0; padding: 0;
+    }
+    .video-base { z-index: 1; filter: brightness(0.9); }
+    
+    .video-overlay {
+        position: absolute; top: 0; left: 0; bottom: 0;
+        width: 50%; 
+        overflow: hidden;
+        z-index: 2;
+        border-right: 1px solid rgba(255,255,255,0.5);
+    }
+    .video-overlay video {
+        width: 100%; max-width: none; 
+    }
+
+    .slider-handle {
+        position: absolute; top: 50%; left: 50%;
+        width: 40px; height: 40px;
+        background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);
+        border: 2px solid var(--accent-cyan); border-radius: 50%;
+        z-index: 10; transform: translate(-50%, -50%);
+        pointer-events: none;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .slider-handle::after {
+        content: '\f337'; font-family: 'Font Awesome 5 Free'; font-weight: 900;
+        color: var(--accent-cyan); font-size: 16px;
+    }
+    .slider-handle::before {
+        content: ''; position: absolute; top: -1000px; bottom: -1000px;
+        width: 2px; background: var(--accent-cyan); z-index: -1;
+        box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    .crop-label {
+        position: absolute; bottom: 10px; padding: 4px 10px;
+        background: rgba(0, 0, 0, 0.8); color: white;
+        font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+        border-radius: 4px; pointer-events: none; user-select: none;
+    }
+    .crop-left { left: 10px; z-index: 20; }
+    .crop-right { right: 10px; z-index: 10; }
+
+    .method-label {
+        text-align: center; font-family: 'Orbitron', sans-serif;
+        color: var(--text-muted); margin-top: 5px; font-size: 0.9rem;
+    }
+
+    .button.is-dark {
+      background-color: var(--button-bg); border: 1px solid var(--accent-cyan); color: var(--accent-cyan);
+      font-family: 'Orbitron', sans-serif; text-transform: uppercase; font-size: 0.8rem;
+      transition: all 0.3s ease;
+    }
+    .button.is-dark:hover {
+      background-color: var(--button-hover); color: var(--button-text-hover);
+      box-shadow: 0 0 15px var(--accent-cyan); transform: translateY(-2px);
+    }
+
+
+    .author-block a { color: var(--accent-cyan); }
+    .author-block sup { color: var(--accent-purple); font-weight: bold; margin-left: 2px; }
+    .footer { background-color: var(--bg-color); border-top: 1px solid var(--panel-border); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<div id="canvas-container"><canvas id="stars"></canvas></div>
+
+<section class="hero">
+  <div class="hero-body" style="padding-top: 5rem; padding-bottom: 5rem;">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered" data-aos="zoom-in">
+          
+          <h1 class="title publication-title glitch-effect" data-text="Breaking the Vicious Cycle">
+            Breaking the Vicious Cycle
+          </h1>
+          <h2 class="subtitle is-4" style="color: var(--text-muted); margin-top: 1rem; font-family: 'Rajdhani', sans-serif;">
+            Coherent 3D Gaussian Splatting from 
+            <span class="highlight-cyan">Sparse</span> and 
+            <span class="highlight-purple">Motion-Blurred</span> Views
+          </h2>
+          
+          <div class="column has-text-centered" style="padding-top: 2rem;">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="#" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-file-pdf"></i></span><span>Paper</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="#" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="ai ai-arxiv"></i></span><span>arXiv</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://github.com/PotatoBigRoom/CoherentGS" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fab fa-github"></i></span><span>Code</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://huggingface.co/datasets/Passwerob/CoherentGS/tree/main" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                    <i class="far fa-images"></i>
+                  </span>
+                  <span>Dataset</span>
+                </a>
+              </span>
+            </div>
+          </div>
+
+          <div class="is-size-5 publication-authors" style="margin-top: 2rem; font-family: 'Rajdhani', sans-serif;">
+            <span class="author-block">Chaoran Feng<sup>*</sup>,</span>
+            <span class="author-block">Zhankuo Xu<sup>*</sup>,</span>
+            <span class="author-block">Yingtao Li,</span>
+            <span class="author-block">Jianbin Zhao,</span>
+            <span class="author-block">Jiashu Yang,</span>
+            <span class="author-block">Wangbo Yu,</span>
+            <br>
+            <span class="author-block" style="font-size: 0.9em; color: var(--text-muted);">Li Yuan<sup>†</sup>, Yonghong Tian<sup>†</sup></span>
+          </div>
+          <div class="is-size-6 publication-authors" style="margin-top: 1rem; color: var(--text-muted);">
+            <span class="author-block">Peking University | School of Electronics and Computer Engineering</span> 
+            <br>
+            <span class="author-block" style="font-size: 0.8rem;"><sup>*</sup>Equal contribution, <sup>†</sup>Corresponding author</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Abstract Section -->
+<section class="section" style="padding-top: 0;">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column box-style" data-aos="fade-up">
+        <h2 class="title is-3">Abstract</h2>
+        <div style="margin-bottom: 2rem;" class="scanlines">
+            <img width="100%" src="./static/images/teaser.png" class="interpolation-image" alt="Teaser image."/>
+        </div>
+        <div class="content has-text-justified" style="font-size: 1.1em; line-height: 1.8; color: var(--text-main);">
+          <p>
+            <strong class="highlight-cyan">3D Gaussian Splatting (3DGS)</strong> has emerged as a state-of-the-art method for novel view synthesis. 
+            However, its performance heavily relies on dense, high-quality input imagery, an assumption that is often violated in real-world applications, where data is typically <b>sparse</b> and <b>motion-blurred</b>.
+            These two issues create a <i>"vicious cycle"</i>: sparse views ignore the multi-view constraints necessary to resolve motion blur, while motion blur erases high-frequency details crucial for aligning the limited views. 
+            Thus, reconstruction often fails catastrophically, with fragmented views and a low-frequency bias.
+            To break this cycle, we introduce <strong class="highlight-purple">CoherentGS</strong>, a novel framework for high-fidelity 3D reconstruction from sparse and blurry images. 
+            Our key insight is to address these compound degradations using a <b>dual-prior strategy</b>. 
+            Specifically, we combine two pre-trained generative models: a specialized <b>deblurring network</b> for restoring sharp details and providing photometric guidance, and a <b>diffusion model</b> that offers geometric priors to fill in unobserved regions of the scene.
+            This strategy is supported by several key techniques, including a <b>consistency-guided camera exploration module</b> that adaptively guides the generative process, and a <b>depth regularization loss</b> that ensures geometric plausibility.
+            We evaluate CoherentGS through both quantitative and qualitative experiments on synthetic and real-world scenes, using as few as 3, 6, and 9 input views. 
+            Our results demonstrate that CoherentGS significantly outperforms existing methods, setting a new state-of-the-art for this challenging task.
+          </p>
+        </div>
+      </div>
+    </div>
+    
+  <!-- Architecture -->
+    <div class="columns is-centered has-text-centered" style="margin-top: 3rem;">
+      <div class="column box-style" data-aos="fade-left">
+          <h2 class="title is-3">Architecture Overview</h2>
+          <div class="columns is-centered">
+            <div class="column is-12 scanlines">
+              <img src="./static/images/pipeline.jpg" class="interpolation-image" alt="Pipeline overview." style="margin-bottom:  0.5rem; opacity: 0.9; width: 100%;"/>
+            </div>
+          </div>
+        <div class="content has-text-justified" style="color: var(--text-main);">
+          <p>
+            The overview of <span class="highlight-cyan">CoherentGS</span>.
+            Our framework synergizes two generative priors to resolve sparse view ambiguity and motion blur. 
+            <b>(Left)</b> We initialize the Gaussian primitives using poses estimated by COLMAP. 
+            <b>(Top) Photometric Restoration via Deblurring Priors:</b> This branch models the physical exposure trajectory to supervise blurry synthesis via $\mathcal{L}_{\text{blurry}}$ and distills sharp high frequency details from a pretrained deblurring network using a perceptual loss $\mathcal{L}_{\text{pr}}$. 
+            <b>(Bottom) Geometric Guidance via Repair Diffusion Priors:</b> This branch utilizes a diffusion model to repair structural defects in explorative viewpoints. 
+            A score distillation loss $\mathcal{L}_{\text{geo}}$ and a depth regularization loss $\mathcal{L}_{\text{reg}}$ are applied to guide the geometry completion and ensure consistency.
+          </p>
+        </div>
+      </div>
+    </div>
+    
+
+<section class="section" style="padding: 0; margin-top: 4rem;">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered" data-aos="fade-down" style="margin-bottom: 2rem;">
+      <span style="border-bottom: 2px solid var(--accent-cyan); padding-bottom: 5px;">
+        Comparative Analysis
+      </span>
+    </h2>
+
+    <!-- Scene Selector -->
+    <div class="scene-tabs-container" id="scene-tabs" style="margin-bottom: 2rem;">
+      <div class="scene-btn active" onclick="changeScene('scene1', this)">
+        <img src="./static/images/thumb1.png" alt="Scene 1">
+      </div>
+      <div class="scene-btn" onclick="changeScene('scene2', this)">
+        <img src="./static/images/ours1.jpg" alt="Scene 3">
+      </div>
+      <div class="scene-btn" onclick="changeScene('scene3', this)">
+        <img src="./static/images/factory.png" alt="Scene 4">
+      </div>
+      <div class="scene-btn" onclick="changeScene('scene4', this)">
+        <img src="./static/images/tanabata.png" alt="Scene 5">
+      </div>
+      <div class="scene-btn" onclick="changeScene('scene5', this)">
+        <img src="./static/images/heron.png" alt="Scene 6">
+      </div>
+      <div class="scene-btn" onclick="changeScene('scene6', this)">
+        <img src="./static/images/coffee.png" alt="Scene 7">
+      </div>
+    </div>
+
+<div class="box-style" data-aos="fade-up">
+
+      <div class="columns is-centered is-variable is-4">
+
+        <!-- 左侧对比组: BAD-Gaussians vs Ours -->
+        <div class="column is-6">
+          <div class="video-compare-container scanlines" id="compare-left">
+            <!-- Overlay Video (左边显示的，对应 BAD-Gaussians) -->
+            <!-- 注意：在 JS 逻辑中，这个 ID 被分配给了 baseline 视频，不要改 ID，否则 JS 会失效 -->
+            <div class="video-overlay">
+              <video id="video-left-ours" autoplay muted loop playsinline>
+                <source src="./static/videos/3views/badgs.mp4" type="video/mp4">
+              </video>
+            </div>
+            
+            <!-- Base Video (右边显示的，对应 Ours) -->
+            <video class="video-base" id="video-left-baseline" autoplay muted loop playsinline>
+              <source src="./static/videos/3views/ours.mp4" type="video/mp4">
+            </video>
+
+            <div class="slider-handle"></div>
+            <span class="crop-label crop-left">BAD-Gaussians</span>
+            <span class="crop-label crop-right">Ours</span>
+          </div>
+          <div class="method-label">Rendered Video</div>
+        </div>
+
+        <!-- 右侧对比组: Depth Video -->
+        <div class="column is-6">
+          <div class="video-compare-container scanlines" id="compare-right">
+            <!-- Overlay Video (左边显示的 Depth) -->
+            <div class="video-overlay">
+              <video id="video-right-ours" autoplay muted loop playsinline>
+                <source src="./static/videos/3views/badgs_depth.mp4" type="video/mp4">
+              </video>
+            </div>
+            
+            <!-- Base Video (右边显示的 Depth) -->
+            <video class="video-base" id="video-right-baseline" autoplay muted loop playsinline>
+              <source src="./static/videos/3views/ours_depth.mp4" type="video/mp4">
+            </video>
+
+            <div class="slider-handle"></div>
+            <span class="crop-label crop-left">BAD-Gaussians</span>
+            <span class="crop-label crop-right">Ours</span>
+          </div>
+          <div class="method-label">Depth Video</div>
+        </div>
+
+      </div>
+
+      <!-- 第二行对比组 (Difix3D+) -->
+      <div class="columns is-centered is-variable is-4">
+
+        <div class="column is-6">
+          <div class="video-compare-container scanlines" id="compare-left-2">
+            <div class="video-overlay">
+              <video id="video-left-ours-2" autoplay muted loop playsinline>
+                 <source src="./static/videos/difix2.mp4" type="video/mp4">
+              </video>
+            </div>
+            <video class="video-base" id="video-left-baseline-2" autoplay muted loop playsinline>
+                <source src="./static/videos/3views/ours.mp4" type="video/mp4">
+            </video>
+
+            <div class="slider-handle"></div>
+            <span class="crop-label crop-left">Difix3D+</span>
+            <span class="crop-label crop-right">Ours</span>
+          </div>
+          <div class="method-label">Rendered Video</div>
+        </div>
+
+        <div class="column is-6">
+          <div class="video-compare-container scanlines" id="compare-right-2">
+            <div class="video-overlay">
+              <video id="video-right-ours-2" autoplay muted loop playsinline>
+                <source src="./static/videos/difix_depth.mp4" type="video/mp4">
+              </video>
+            </div>
+            <video class="video-base" id="video-right-baseline-2" autoplay muted loop playsinline>
+                <source src="./static/videos/3views/ours_depth.mp4" type="video/mp4">
+            </video>
+
+            <div class="slider-handle"></div>
+            <span class="crop-label crop-left">Difix3D+</span>
+            <span class="crop-label crop-right">Ours</span>
+          </div>
+          <div class="method-label">Depth Video</div>
+        </div>
+
+      </div>
+
+      <p class="is-size-6 has-text-centered" style="margin-top: 1.5rem; color: var(--text-muted);">
+        <i class="fas fa-hand-pointer"></i> Drag the slider to scan between methods.
+      </p>
+
+    </div>
+
+
+  </div>
+
+
+</section>
+
+
+
+<!-- BibTeX Section -->
+<section class="section" id="BibTeX" style="margin-top: 2rem;">
+  <div class="container is-max-desktop content box-style">
+    <h2 class="title" style="border-bottom: 1px solid var(--text-muted); padding-bottom: 10px;">BibTeX Reference</h2>
+    <pre style="background-color: var(--button-bg); color: var(--accent-black); border: 1px solid var(--panel-border); border-left: 4px solid var(--accent-cyan); font-family: 'Courier New', monospace;"><code>@article{feng2025coherentgs,
+  author    = {Feng, Chaoran and Xu, Zhankuo and Li, Yingtao and Zhao, Jianbin and Yang, Jiashu and Yu, Wangbo and Yuan, Li and Tian, Yonghong},
+  title     = {Breaking the Vicious Cycle: Coherent 3D Gaussian Splatting from Sparse and Motion-Blurred Views},
+  journal   = {ArXiv},
+  year      = {2025},
+}</code></pre>
+  </div>
+</section>
+
+<footer class="footer" style="background: var(--bg-color);">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-centered" style="color: var(--text-muted);">
+          <p>
+            <i class="fas fa-code"></i> Licensed under <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" style="color: var(--accent-cyan);">CC BY-SA 4.0</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Scripts -->
+<script>
+  AOS.init({ once: true, offset: 50, duration: 800 });
+
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  let particlesArray;
+  
+  function getThemeColors() {
+      const isLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      return {
+          color1: isLight ? '#0070f3' : '#00f3ff', 
+          color2: isLight ? '#7928ca' : '#bc13fe',
+          lineColor: isLight ? '100, 100, 100' : '100, 100, 255'
+      };
+  }
+
+  let theme = getThemeColors();
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', event => {
+      theme = getThemeColors();
+      initParticles();
+  });
+
+  class Particle {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.directionX = (Math.random() * 0.4) - 0.2;
+        this.directionY = (Math.random() * 0.4) - 0.2;
+        this.size = Math.random() * 2;
+        this.color = Math.random() > 0.5 ? theme.color1 : theme.color2;
+    }
+    draw() {
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+        ctx.fillStyle = this.color; ctx.globalAlpha = 0.6; ctx.fill();
+    }
+    update() {
+        if (this.x > canvas.width || this.x < 0) this.directionX = -this.directionX;
+        if (this.y > canvas.height || this.y < 0) this.directionY = -this.directionY;
+        this.x += this.directionX; this.y += this.directionY; this.draw();
+    }
+  }
+
+  function initParticles() {
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    particlesArray = [];
+    let numberOfParticles = (canvas.height * canvas.width) / 15000; 
+    for (let i = 0; i < numberOfParticles; i++) particlesArray.push(new Particle());
+  }
+
+  function animateParticles() {
+    requestAnimationFrame(animateParticles);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < particlesArray.length; i++) {
+        particlesArray[i].update();
+        for (let j = i; j < particlesArray.length; j++) {
+            const dx = particlesArray[i].x - particlesArray[j].x;
+            const dy = particlesArray[i].y - particlesArray[j].y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < 100) {
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(${theme.lineColor}, ${1 - distance/100})`;
+                ctx.lineWidth = 0.5;
+                ctx.moveTo(particlesArray[i].x, particlesArray[i].y);
+                ctx.lineTo(particlesArray[j].x, particlesArray[j].y);
+                ctx.stroke();
+            }
+        }
+    }
+  }
+  window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight; initParticles();
+  });
+  initParticles();
+  animateParticles();
+
+  const sceneData = {
+    scene1: {
+      rgb_baseline_1:   './static/videos/3views/badgs.mp4',
+      rgb_ours_1:       './static/videos/3views/ours.mp4',
+      depth_baseline_1: './static/videos/3views/badgs_depth.mp4',
+      depth_ours_1:     './static/videos/3views/ours_depth.mp4',
+
+      // 第二行：Rendered / Depth（B 视角）
+      rgb_baseline_2:   './static/videos/difix2.mp4',
+      rgb_ours_2:       './static/videos/3views/ours.mp4',
+      depth_baseline_2: './static/videos/difix_depth.mp4',
+      depth_ours_2:     './static/videos/3views/ours_depth.mp4',
+    },
+
+    scene2: {
+      rgb_baseline_1:   './static/videos/badgs1.mp4',
+      rgb_ours_1:       './static/videos/ours1.mp4',
+      depth_baseline_1: './static/videos/bad-gs1depth.mp4',
+      depth_ours_1:     './static/videos/ours1depth.mp4',
+
+      rgb_baseline_2:   './static/videos/difix1.mp4',
+      rgb_ours_2:       './static/videos/ours1.mp4',
+      depth_baseline_2: './static/videos/difix1depth.mp4',
+      depth_ours_2:     './static/videos/ours1depth.mp4',
+    },
+    scene3: {
+      rgb_baseline_1:   './static/videos/bad-gssyn.mp4',
+      rgb_ours_1:       './static/videos/ourssyn.mp4',
+      depth_baseline_1: './static/videos/bad-gsyndepth.mp4',
+      depth_ours_1:     './static/videos/ourssyndepth.mp4',
+
+      rgb_baseline_2:   './static/videos/difixsyn.mp4',
+      rgb_ours_2:       './static/videos/ourssyn.mp4',
+      depth_baseline_2: './static/videos/difixsyndepth.mp4',
+      depth_ours_2:     './static/videos/ourssyndepth.mp4',
+    },
+  scene4: {
+      rgb_baseline_1:   './static/videos/bad-gssyn1.mp4',
+      rgb_ours_1:       './static/videos/ourssyn1.mp4',
+      depth_baseline_1: './static/videos/bad-gssyndepth1.mp4',
+      depth_ours_1:     './static/videos/ourssyndepth1.mp4',
+
+      rgb_baseline_2:   './static/videos/difixsyn1.mp4',
+      rgb_ours_2:       './static/videos/ourssyn1.mp4',
+      depth_baseline_2: './static/videos/difixsyn1depth.mp4',
+      depth_ours_2:     './static/videos/ourssyndepth1.mp4',
+    },
+  scene5: {
+      rgb_baseline_1:   './static/videos/bad-gsreal.mp4',
+      rgb_ours_1:       './static/videos/oursreal.mp4',
+      depth_baseline_1: './static/videos/bad-gsrealdepth.mp4',
+      depth_ours_1:     './static/videos/oursrealdepth.mp4',
+
+      rgb_baseline_2:   './static/videos/difixreal.mp4',
+      rgb_ours_2:       './static/videos/oursreal.mp4',
+      depth_baseline_2: './static/videos/difixrealdepth2.mp4',
+      depth_ours_2:     './static/videos/oursrealdepth.mp4',
+    },
+  scene6: {
+      rgb_baseline_1:   './static/videos/badgsreal1.mp4',
+      rgb_ours_1:       './static/videos/oursreal1.mp4',
+      depth_baseline_1: './static/videos/badgsrealdepth2.mp4',
+      depth_ours_1:     './static/videos/oursreal1depth1.mp4',
+
+      rgb_baseline_2:   './static/videos/difixreal1.mp4',
+      rgb_ours_2:       './static/videos/oursreal1.mp4',
+      depth_baseline_2: './static/videos/difixrealdepth.mp4',
+      depth_ours_2:     './static/videos/oursreal1depth.mp4',
+    },
+  };
+
+  function changeScene(sceneId, btnElement) {
+    // 1. 更新按钮高亮
+    if (btnElement) {
+      document.querySelectorAll('.scene-btn').forEach(btn => btn.classList.remove('active'));
+      btnElement.classList.add('active');
+    }
+
+    const data = sceneData[sceneId];
+    if (!data) return;
+
+    const videoMap = {
+      'video-left-ours':        data.rgb_baseline_1,
+      'video-left-baseline':    data.rgb_ours_1,
+      'video-right-ours':       data.depth_baseline_1,
+      'video-right-baseline':   data.depth_ours_1,
+
+      'video-left-ours-2':      data.rgb_baseline_2,
+      'video-left-baseline-2':  data.rgb_ours_2,
+      'video-right-ours-2':     data.depth_baseline_2,
+      'video-right-baseline-2': data.depth_ours_2,
+    };
+
+    for (const [elementId, videoSrc] of Object.entries(videoMap)) {
+      const videoEl = document.getElementById(elementId);
+      if (!videoEl) continue;
+
+      videoEl.src = videoSrc;
+      videoEl.load();
+      videoEl.play().catch(() => {
+      });
+    }
+  }
+
+
+  // --- 3. Slider Comparison Logic (Scanning Effect) ---
+  document.addEventListener('DOMContentLoaded', () => {
+      const containers = document.querySelectorAll('.video-compare-container');
+
+      containers.forEach(container => {
+          const overlay = container.querySelector('.video-overlay');
+          const overlayVideo = overlay.querySelector('video'); // Ours
+          const baseVideo = container.querySelector('.video-base'); // Baseline
+          const handle = container.querySelector('.slider-handle');
+          
+          let isDragging = false;
+
+          // Force overlay video to match container width (Anti-squash)
+          function resizeOverlayVideo() {
+              const w = container.offsetWidth;
+              const h = container.offsetHeight;
+              overlayVideo.style.width = w + 'px';
+              overlayVideo.style.height = h + 'px';
+          }
+          
+          window.addEventListener('resize', resizeOverlayVideo);
+          overlayVideo.addEventListener('loadedmetadata', resizeOverlayVideo);
+          setTimeout(resizeOverlayVideo, 100); // Initial check
+
+          // Sync Playback
+          function syncVideos() {
+              if (Math.abs(baseVideo.currentTime - overlayVideo.currentTime) > 0.2) {
+                  overlayVideo.currentTime = baseVideo.currentTime;
+              }
+              if (!baseVideo.paused && overlayVideo.paused) overlayVideo.play();
+              if (baseVideo.paused && !overlayVideo.paused) overlayVideo.pause();
+              requestAnimationFrame(syncVideos);
+          }
+          syncVideos();
+
+          // Interaction
+          function updateSlider(x) {
+              const rect = container.getBoundingClientRect();
+              let position = (x - rect.left) / rect.width;
+              position = Math.max(0, Math.min(1, position));
+              const percent = position * 100;
+
+              overlay.style.width = `${percent}%`;
+              handle.style.left = `${percent}%`;
+          }
+
+          container.addEventListener('mousedown', (e) => { isDragging = true; updateSlider(e.clientX); });
+          window.addEventListener('mousemove', (e) => { if (isDragging) updateSlider(e.clientX); });
+          window.addEventListener('mouseup', () => { isDragging = false; });
+          
+          container.addEventListener('touchstart', (e) => { isDragging = true; updateSlider(e.touches[0].clientX); });
+          window.addEventListener('touchmove', (e) => { if (isDragging) updateSlider(e.touches[0].clientX); });
+          window.addEventListener('touchend', () => { isDragging = false; });
+          
+          container.addEventListener('click', (e) => { updateSlider(e.clientX); });
+      });
+  });
+</script>
+
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']]
+    },
+    svg: {
+      fontCache: 'global'
+    }
+  };
+</script>
+<script type="text/javascript" id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+
+
+</body>
+</html>

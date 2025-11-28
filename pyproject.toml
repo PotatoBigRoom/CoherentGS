@@ -1,0 +1,21 @@
+[project]
+name = "bad-gaussians"
+version = "1.4.0"
+
+dependencies=[
+    "gsplat==1.4.0",
+    "pypose",
+    "scipy"
+]
+
+# black
+[tool.black]
+line-length = 120
+
+# pylint
+[tool.pylint.messages_control]
+max-line-length = 120
+generated-members = ["numpy.*", "torch.*", "cv2.*", "cv.*"]
+
+[tool.setuptools.packages.find]
+include = ["bad_gaussians"]
