@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-SE(3)混合采样策略模块
-
-使用纯PyTorch实现的SE(3)插值算法，不依赖pypose
-提供两个核心功能：
-1. 反向插值：给定中间点（t=0.5）和终点，反推起点
-2. 正向插值：给定两个pose，计算它们之间t=0.5的插值点
-"""
 
 import torch
 import torch.nn.functional as F
@@ -20,20 +12,6 @@ def se3_interpolate_midpoint(
     pose2: torch.Tensor,
     K2: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    SE(3)正向插值：计算两个相机pose之间t=0.5的中点
-    使用纯PyTorch实现，不依赖pypose
-    
-    Args:
-        pose1: 第一个相机pose [4, 4] - 起点
-        K1: 第一个相机内参 [3, 3]
-        pose2: 第二个相机pose [4, 4] - 终点
-        K2: 第二个相机内参 [3, 3]
-        
-    Returns:
-        midpoint_pose: 中点pose [4, 4]
-        midpoint_K: 中点内参 [3, 3]
-    """
     return se3_interpolate_to_target(pose1, K1, pose2, K2, t=0.5)
 
 
@@ -43,26 +21,9 @@ def se3_reverse_interpolate_from_midpoint(
     end_pose: torch.Tensor,
     end_K: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    SE(3)反向插值：给定中间点（t=0.5）和终点，反推起点
-    使用纯PyTorch实现，不依赖pypose
-    
-    基于插值公式：midpoint = start * 0.5 + end * 0.5
-    反推公式：start = 2 * midpoint - end
-    
-    Args:
-        midpoint_pose: 中间点pose [4, 4] - 已知的t=0.5位置
-        midpoint_K: 中间点内参 [3, 3]
-        end_pose: 终点pose [4, 4] - 已知的终点
-        end_K: 终点内参 [3, 3]
-        
-    Returns:
-        start_pose: 反推出的起点pose [4, 4]
-        start_K: 反推出的起点内参 [3, 3]
-    """
     device = midpoint_pose.device
     
-    # 确保输入是正确的形状
+    # Ensure inputs have correct shapes
     if midpoint_pose.dim() == 2:
         midpoint_pose = midpoint_pose.unsqueeze(0)  # [1, 4, 4]
     if end_pose.dim() == 2:
@@ -72,24 +33,24 @@ def se3_reverse_interpolate_from_midpoint(
     if end_K.dim() == 2:
         end_K = end_K.unsqueeze(0)  # [1, 3, 3]
     
-    # 提取旋转矩阵和平移向量
+    # Extract rotation matrix and translation vector
     midpoint_R = midpoint_pose[0, :3, :3]  # [3, 3]
     midpoint_t = midpoint_pose[0, :3, 3]   # [3]
     end_R = end_pose[0, :3, :3]           # [3, 3]
     end_t = end_pose[0, :3, 3]            # [3]
     
-    # 1. 平移向量反向插值：start_t = 2 * midpoint_t - end_t
+    # 1. Reverse-lerp translation: start_t = 2 * midpoint_t - end_t
     start_t = 2 * midpoint_t - end_t  # [3]
     
-    # 2. 旋转矩阵反向插值：使用四元数SLERP的反向计算
+    # 2. Reverse SLERP for rotation using quaternions
     start_R = reverse_slerp_rotation(midpoint_R, end_R)  # [3, 3]
     
-    # 3. 构建反推出的起点pose矩阵
+    # 3. Build recovered start pose matrix
     start_pose = torch.eye(4, device=device)
     start_pose[:3, :3] = start_R
     start_pose[:3, 3] = start_t
     
-    # 4. 内参反向插值：start_K = 2 * midpoint_K - end_K
+    # 4. Reverse-lerp intrinsics: start_K = 2 * midpoint_K - end_K
     start_K = 2 * midpoint_K[0] - end_K[0]  # [3, 3]
     
     return start_pose, start_K
@@ -97,26 +58,26 @@ def se3_reverse_interpolate_from_midpoint(
 
 def reverse_slerp_rotation(midpoint_R: torch.Tensor, end_R: torch.Tensor) -> torch.Tensor:
     """
-    旋转矩阵的反向球面线性插值
-    给定中点和终点，反推起点
+    Reverse spherical linear interpolation (SLERP) for rotation matrices.
+    Given midpoint and endpoint, recover the start rotation.
     
     Args:
-        midpoint_R: 中点旋转矩阵 [3, 3]
-        end_R: 终点旋转矩阵 [3, 3]
+        midpoint_R: midpoint rotation matrix [3, 3]
+        end_R: end rotation matrix [3, 3]
         
     Returns:
-        start_R: 起点旋转矩阵 [3, 3]
+        start_R: recovered start rotation matrix [3, 3]
     """
     device = midpoint_R.device
     
-    # 将旋转矩阵转换为四元数
+    # Convert rotation matrices to quaternions
     midpoint_q = rotation_matrix_to_quaternion(midpoint_R)  # [4]
     end_q = rotation_matrix_to_quaternion(end_R)            # [4]
     
-    # 四元数反向插值
+    # Reverse quaternion SLERP
     start_q = reverse_slerp_quaternion(midpoint_q, end_q)  # [4]
     
-    # 将四元数转换回旋转矩阵
+    # Convert quaternion back to rotation matrix
     start_R = quaternion_to_rotation_matrix(start_q)  # [3, 3]
     
     return start_R
@@ -124,45 +85,44 @@ def reverse_slerp_rotation(midpoint_R: torch.Tensor, end_R: torch.Tensor) -> tor
 
 def reverse_slerp_quaternion(midpoint_q: torch.Tensor, end_q: torch.Tensor) -> torch.Tensor:
     """
-    四元数反向球面线性插值
-    给定中点和终点，反推起点
+    Reverse spherical linear interpolation (SLERP) for quaternions.
+    Given midpoint and endpoint, recover the start quaternion.
     
-    对于四元数插值：midpoint_q = slerp(start_q, end_q, 0.5)
-    反向求解：start_q = slerp(midpoint_q, end_q, -1) 然后归一化
+    For SLERP: midpoint_q = slerp(start_q, end_q, 0.5).
+    Reverse solution: start_q = slerp(midpoint_q, end_q, -1), then normalize.
     
     Args:
-        midpoint_q: 中点四元数 [4] (w, x, y, z)
-        end_q: 终点四元数 [4] (w, x, y, z)
+        midpoint_q: midpoint quaternion [4] (w, x, y, z)
+        end_q: end quaternion [4] (w, x, y, z)
         
     Returns:
-        start_q: 起点四元数 [4] (w, x, y, z)
+        start_q: recovered start quaternion [4] (w, x, y, z)
     """
     device = midpoint_q.device
     
-    # 计算点积
+    # Dot product
     dot = torch.dot(midpoint_q, end_q)
     
-    # 如果点积为负，取反其中一个四元数
+    # If dot < 0, flip one quaternion to choose the shorter path
     if dot < 0.0:
         end_q = -end_q
         dot = -dot
     
-    # 计算角度
+    # Angle
     theta_0 = torch.acos(torch.clamp(dot, -1.0, 1.0))
     sin_theta_0 = torch.sin(theta_0)
     
-    # 反向插值：t = -1
-    # 这意味着我们要从midpoint向相反方向插值
-    theta = -theta_0  # 负角度
+    # Reverse interpolation: t = -1 (midpoint to the opposite direction)
+    theta = -theta_0  # negative angle
     sin_theta = torch.sin(theta)
     
-    # 反向球面线性插值
+    # Reverse SLERP
     s0 = torch.cos(theta) - dot * sin_theta / sin_theta_0
     s1 = sin_theta / sin_theta_0
     
     start_q = s0 * midpoint_q + s1 * end_q
     
-    # 归一化
+    # Normalize
     start_q = start_q / torch.norm(start_q)
     
     return start_q

@@ -9,7 +9,6 @@ import math
 from typing import Optional, Tuple, List
 
 def _load_vgg16_pretrained() -> nn.Module:
-    """兼容新旧 torchvision 的 VGG16 预训练权重加载。"""
     try:
         # torchvision >= 0.13
         from torchvision.models import VGG16_Weights
@@ -20,10 +19,6 @@ def _load_vgg16_pretrained() -> nn.Module:
     return vgg
 
 class VGG16PerceptualLoss(nn.Module):
-    """
-    VGG-16 Perceptual Loss
-    使用VGG-16的某层特征计算感知损失
-    """
 
     def __init__(
         self,
@@ -35,16 +30,6 @@ class VGG16PerceptualLoss(nn.Module):
         dtype: torch.dtype = torch.float32, # 统一 dtype
         enable_timing: bool = True,         # 是否启用时间统计
     ):
-        """
-        Args:
-            feature_layer: 目标特征层 ('relu1_2','relu2_2','relu3_3','relu4_3','relu5_1')
-            normalize: 是否做 ImageNet 标准化
-            resize_input: 是否缩放到 224x224
-            requires_grad: VGG 特征是否参与反传
-            device: 计算设备；默认 'cuda'。若为 None 且有 CUDA，则自动用 'cuda's
-            dtype: 计算精度（默认 float32）
-            enable_timing: 是否启用时间统计
-        """
         super().__init__()
 
         # 设备选择
@@ -100,7 +85,6 @@ class VGG16PerceptualLoss(nn.Module):
 
     @torch.no_grad()
     def _get_layer_info(self):
-        """获取目标层的通道数/尺寸信息（在 self.device 上求一次前向）"""
         test_input = torch.randn(1, 3, 224, 224, device=self.device, dtype=self.dtype)
         x = test_input
         if self.normalize:
@@ -113,9 +97,7 @@ class VGG16PerceptualLoss(nn.Module):
         # print(f"[{self.feature_layer_name}] C:{self.C_j} H:{self.H_j} W:{self.W_j}")
 
     def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        预处理输入到 [B, C, H, W]，放到同一 device/dtype，按需 resize/normalize
-        """
+
         # 移动设备/类型
         x = x.to(self.device, dtype=self.dtype, non_blocking=True)
 
@@ -138,7 +120,6 @@ class VGG16PerceptualLoss(nn.Module):
         return x
 
     def extract_features(self, x: torch.Tensor) -> torch.Tensor:
-        """提取 VGG 特征（在 self.device 上）"""
         if self.enable_timing:
             feature_start_time = time.time()
         
@@ -294,28 +275,6 @@ class VGG16PerceptualLossWithMultipleLayers(nn.Module):
         return total
 
 class VGG16DISTSLoss(nn.Module):
-    """
-    基于VGG16的DISTS (Deep Image Structure and Texture Similarity) Loss
-    使用relu2_2和relu3_3层特征，按照用户提供的公式实现
-    
-    设 I=渲染图、T=生成图（软GT）
-    F^(2) = relu2_2(I), G^(2) = relu2_2(T)
-    F^(3) = relu3_3(I), G^(3) = relu3_3(T)
-    
-    对每层 l∈{2,3} 和每个通道 c 在空间维计算:
-    - 均值: μ_F,l,c, μ_G,l,c
-    - 标准差: σ_F,l,c, σ_G,l,c  
-    - 协方差: σ_FG,l,c
-    
-    纹理/亮度相似（"l"项）:
-    l_l = (1/C) * Σ_c [2*μ_F,l,c*μ_G,l,c + c1] / [μ_F,l,c² + μ_G,l,c² + c1]
-    
-    结构相似（"s"项）:
-    s_l = (1/C) * Σ_c [2*σ_FG,l,c + c2] / [σ_F,l,c² + σ_G,l,c² + c2]
-    
-    两层汇总为距离:
-    L_DISTS = Σ_l∈{2,3} [α_l*(1-s_l) + β_l*(1-l_l)]
-    """
     
     def __init__(
         self,
@@ -334,18 +293,6 @@ class VGG16DISTSLoss(nn.Module):
         c1: float = 1e-6,
         c2: float = 1e-6,
     ):
-        """
-        Args:
-            normalize: 是否做 ImageNet 标准化
-            resize_input: 是否缩放到 224x224
-            requires_grad: VGG 特征是否参与反传
-            device: 计算设备
-            dtype: 计算精度
-            enable_timing: 是否启用时间统计
-            alpha_2, beta_2: relu2_2层的结构和纹理权重
-            alpha_3, beta_3: relu3_3层的结构和纹理权重
-            c1, c2: 稳定性常数
-        """
         super().__init__()
         
         # 设备选择
@@ -478,16 +425,6 @@ class VGG16DISTSLoss(nn.Module):
     
     def compute_dists_loss_layer(self, F: torch.Tensor, G: torch.Tensor, 
                                 layer_name: str, alpha: float, beta: float) -> torch.Tensor:
-        """
-        计算单层的DISTS损失，按照用户提供的公式实现
-        
-        Args:
-            F: 渲染图特征 [B, C, H, W]
-            G: 生成图特征 [B, C, H, W]
-            layer_name: 层名称
-            alpha: 结构权重
-            beta: 纹理权重
-        """
         B, C, H, W = F.shape
         
         # 将特征展平为 [B, C, H*W]
@@ -533,10 +470,6 @@ class VGG16DISTSLoss(nn.Module):
         return layer_loss
     
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """
-        计算DISTS损失，按照用户提供的公式:
-        L_DISTS = Σ_l∈{2,3} [α_l*(1-s_l) + β_l*(1-l_l)]
-        """
         if self.enable_timing:
             forward_start_time = time.time()
         
@@ -584,16 +517,7 @@ def create_perceptual_loss(
     enable_timing: bool = True,
     **kwargs
 ) -> nn.Module:
-    """
-    创建感知损失模块
-    
-    Args:
-        feature_layer: 单层模式下的特征层
-        use_multiple_layers: 是否使用多层级感知损失
-        use_dists: 是否使用DISTS损失
-        enable_timing: 是否启用时间统计
-        **kwargs: 其他参数
-    """
+
     if use_dists:
         return VGG16DISTSLoss(enable_timing=enable_timing, **kwargs)
     elif use_multiple_layers:

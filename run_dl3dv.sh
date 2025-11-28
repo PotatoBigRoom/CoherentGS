@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# 运行 simple_trainer_deblur.py 的独立脚本 (GPU 0)
-# 专门用于运行 simple_trainer_deblur.py 在所有场景上
+# Standalone script to run simple_trainer_deblur.py
+# Dedicated to running simple_trainer_deblur.py across all scenes
 
-# 设置基础路径
+# Base paths
 BASE_DIR=""
 DATA_DIR=""
 RESULTS_DIR=""
 
-# 脚本路径
+# Script path
 SCRIPT_TRAINER="$BASE_DIR/simple_deblur_difix.py"
 
-# 固定使用GPU 0
+# Set GPU device
 export CUDA_VISIBLE_DEVICES=3
 
-# 创建结果目录
+# Create results directory
 mkdir -p "$RESULTS_DIR"
 
 
@@ -26,7 +26,7 @@ declare -a DL3DV_SCENES=(
     "0005"
 )
 
-# 颜色输出函数
+# Colored output functions
 print_header() {
     echo -e "\n\033[1;34m========================================\033[0m"
     echo -e "\033[1;34m$1\033[0m"
@@ -45,7 +45,7 @@ print_error() {
     echo -e "\033[1;31m[ERROR]\033[0m $1"
 }
 
-# 运行单个实验的函数
+# Function to run a single experiment
 run_trainer_experiment() {
     local scene_name=$1
     local data_path=$2
@@ -53,10 +53,10 @@ run_trainer_experiment() {
     local result_dir="$RESULTS_DIR/3views200/${scene_name}"
     
     
-    # 创建结果目录
+    # Create result directory
     mkdir -p "$result_dir"
     #
-    # 运行训练
+    # Run training
     cd "$BASE_DIR"
     DATA_FACTOR=4
     SCALE_FACTOR=0.25
@@ -79,31 +79,31 @@ run_trainer_experiment() {
     local exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
-        print_info "✅ 实验完成: $scene_name 使用 simple_trainer_deblur.py"
+        print_info "✅ Experiment completed: $scene_name with simple_trainer_deblur.py"
     else
-        print_error "❌ 实验失败: $scene_name 使用 simple_trainer_deblur.py (退出码: $exit_code)"
+        print_error "❌ Experiment failed: $scene_name with simple_trainer_deblur.py (exit code: $exit_code)"
     fi
     
     return $exit_code
 }
 
-# 主实验循环
+# Main experiment loop
 main() {
-    print_header "开始所有场景的 simple_trainer_deblur.py 实验 (GPU 0)"
+    print_header "Start simple_trainer_deblur.py experiments for all scenes (GPU 3)"
     
     local total_experiments=0
     local successful_experiments=0
     local failed_experiments=0
     
-    # 处理 bad-nerf-gtK-colmap-nvs 场景
-    print_header "处理 bad-nerf-gtK-colmap-nvs 场景"
+    # Process bad-nerf-gtK-colmap-nvs scene
+    print_header "Process bad-nerf-gtK-colmap-nvs scene"
 
     
     for scene in "${DL3DV_SCENES[@]}"; do
         local data_path="$DATA_DIR/$scene/3views"
         
         if [ ! -d "$data_path" ]; then
-            print_warning "跳过不存在的场景: $data_path"
+            print_warning "Skipping non-existent scene: $data_path"
             continue
         fi
         
@@ -115,41 +115,41 @@ main() {
             failed_experiments=$((failed_experiments + 1))
         fi
         
-        # 等待一段时间让GPU释放内存
-        print_info "⏸️  等待GPU内存释放..."
+        # Wait a bit to free GPU memory
+        print_info "⏸️  Waiting for GPU memory to be released..."
         sleep 10
     done
     
-    # 输出最终统计
-    print_header "simple_trainer_deblur.py 实验完成统计"
-    print_info "总实验数: $total_experiments"
-    print_info "成功实验数: $successful_experiments"
-    print_info "失败实验数: $failed_experiments"
+    # Final statistics
+    print_header "simple_trainer_deblur.py experiment summary"
+    print_info "Total experiments: $total_experiments"
+    print_info "Successful experiments: $successful_experiments"
+    print_info "Failed experiments: $failed_experiments"
     
     if [ $total_experiments -gt 0 ]; then
         local success_rate=$(echo "scale=2; $successful_experiments * 100 / $total_experiments" | bc 2>/dev/null || echo "N/A")
-        print_info "成功率: ${success_rate}%"
+        print_info "Success rate: ${success_rate}%"
     else
-        print_info "成功率: 0%"
+        print_info "Success rate: 0%"
     fi
     
-    # 生成实验报告
+    # Generate experiment report
     local report_file="$RESULTS_DIR/trainer_experiment_report_$(date +%Y%m%d_%H%M%S).txt"
     {
-        echo "simple_trainer_deblur.py 实验报告 - $(date)"
+        echo "simple_trainer_deblur.py experiment report - $(date)"
         echo "============================================="
-        echo "GPU: 0"
-        echo "脚本: simple_trainer_deblur.py"
-        echo "总实验数: $total_experiments"
-        echo "成功实验数: $successful_experiments"
-        echo "失败实验数: $failed_experiments"
+        echo "GPU: 3"
+        echo "Script: simple_trainer_deblur.py"
+        echo "Total experiments: $total_experiments"
+        echo "Successful experiments: $successful_experiments"
+        echo "Failed experiments: $failed_experiments"
         if [ $total_experiments -gt 0 ]; then
-            echo "成功率: $(echo "scale=2; $successful_experiments * 100 / $total_experiments" | bc 2>/dev/null || echo "N/A")%"
+            echo "Success rate: $(echo "scale=2; $successful_experiments * 100 / $total_experiments" | bc 2>/dev/null || echo "N/A")%"
         else
-            echo "成功率: 0%"
+            echo "Success rate: 0%"
         fi
         echo ""
-        echo "实验场景列表:"
+        echo "Experiment scene list:"
         echo "-------------"
         
         for scene in "${BAD_NERF_SCENES[@]}" "${REAL_BLUR_SCENES[@]}" "${DL3DV_SCENES[@]}"; do
@@ -158,47 +158,47 @@ main() {
         
     } > "$report_file"
     
-    print_info "实验报告已保存到: $report_file"
+    print_info "Experiment report saved to: $report_file"
 }
 
-# 检查依赖
+# Check dependencies
 check_dependencies() {
-    print_info "检查依赖..."
+    print_info "Checking dependencies..."
     
-    # 检查脚本是否存在
+    # Check if trainer script exists
     if [ ! -f "$SCRIPT_TRAINER" ]; then
-        print_error "脚本不存在: $SCRIPT_TRAINER"
+        print_error "Script not found: $SCRIPT_TRAINER"
         exit 1
     fi
     
-    # 检查数据目录是否存在
+    # Check if data directory exists
     if [ ! -d "$DATA_DIR" ]; then
-        print_error "数据目录不存在: $DATA_DIR"
+        print_error "Data directory not found: $DATA_DIR"
         exit 1
     fi
     
-    # 检查GPU是否可用
+    # Check GPU availability
     if ! command -v nvidia-smi &> /dev/null; then
-        print_warning "nvidia-smi 不可用，无法检查GPU状态"
+        print_warning "nvidia-smi not available, cannot check GPU status"
     else
-        print_info "GPU 0 状态:"
+        print_info "GPU 3 status:"
         nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv,noheader,nounits | head -1
     fi
     
-    print_info "依赖检查完成"
+    print_info "Dependency check complete"
 }
 
-# 脚本入口
+# Script entry
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo "用法: $0 [选项]"
+    echo "Usage: $0 [options]"
     echo ""
-    echo "选项:"
-    echo "  --help, -h     显示此帮助信息"
-    echo "  --check        仅检查依赖，不运行实验"
+    echo "Options:"
+    echo "  --help, -h     Show this help message"
+    echo "  --check        Only check dependencies, do not run experiments"
     echo ""
-    echo "说明:"
-    echo "  此脚本专门运行 simple_trainer_deblur.py 在所有场景上 (使用GPU 0)"
-    echo "  总共会运行 $(( ${#BAD_NERF_SCENES[@]} + ${#REAL_BLUR_SCENES[@]} + ${#DL3DV_SCENES[@]} )) 个实验"
+    echo "Notes:"
+    echo "  This script runs simple_trainer_deblur.py across all scenes (using GPU 3)"
+    echo "  Total runs: $(( ${#BAD_NERF_SCENES[@]} + ${#REAL_BLUR_SCENES[@]} + ${#DL3DV_SCENES[@]} ))"
     exit 0
 fi
 
@@ -207,6 +207,6 @@ if [ "$1" = "--check" ]; then
     exit 0
 fi
 
-# 运行主程序
+# Run main program
 check_dependencies
 main
