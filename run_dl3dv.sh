@@ -4,9 +4,9 @@
 # 专门用于运行 simple_trainer_deblur.py 在所有场景上
 
 # 设置基础路径
-BASE_DIR="/remote-home/fcr/Event_proj/DeblurDIFIXZK/CoherentGS"
-DATA_DIR="/remote-home/fcr/Event_proj/compare/dl3dv/0641-0720"
-RESULTS_DIR="/remote-home/fcr/Event_proj/results_final2"
+BASE_DIR=""
+DATA_DIR=""
+RESULTS_DIR=""
 
 # 脚本路径
 SCRIPT_TRAINER="$BASE_DIR/simple_deblur_difix.py"
