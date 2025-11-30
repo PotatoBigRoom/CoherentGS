@@ -988,9 +988,8 @@ class Runner:
                 spiral_scale_r=self.parser.extconf["spiral_radius_scale"],
             )
         elif cfg.render_traj_path == "linear":
-            # 增加插值密度，生成更多帧数
-            # 如果原始有N个pose，生成 n_interp * (N-1) 帧
-            n_interp = max(10, 600 // max(1, len(camtoworlds_all) - 1))  # 目标生成约120帧
+
+            n_interp = max(10, 600 // max(1, len(camtoworlds_all) - 1)) 
             camtoworlds_all = generate_linear_interpolated_path(camtoworlds_all, n_interp)  # [N, 3, 4]
         else:
             raise ValueError(f"Render trajectory type not supported: {cfg.render_traj_path}")

@@ -137,44 +137,28 @@ def se3_interpolate_with_perturbation(
     cfg=None,
     perturbation_std: float = 0.01
 ) -> Tuple[list, list]:
-    """
-    SE(3)插值并添加扰动（兼容maximum_circle_hybrid_sampling.py的接口）
-    
-    Args:
-        start_pose: 起始pose [4, 4]
-        start_K: 起始内参 [3, 3]
-        end_pose: 结束pose [4, 4]
-        end_K: 结束内参 [3, 3]
-        num_samples: 采样数量
-        cfg: 配置对象（可选）
-        perturbation_std: 扰动标准差
-        
-    Returns:
-        interpolated_poses: 插值poses列表
-        interpolated_Ks: 插值内参列表
-    """
     interpolated_poses = []
     interpolated_Ks = []
     
     for i in range(num_samples):
-        # 计算插值参数
+        # Compute interpolation parameter
         if num_samples == 1:
-            t = 0.5  # 单个样本时使用中点
+            t = 0.5  # use midpoint when there is a single sample
         else:
-            t = i / (num_samples - 1)  # 均匀分布
+            t = i / (num_samples - 1)  # uniformly distributed
         
-        # 执行插值
+        # Perform interpolation
         interp_pose, interp_K = se3_interpolate_to_target(
             start_pose, start_K, end_pose, end_K, t
         )
         
-        # 添加小的随机扰动（如果需要）
+        # Add small random perturbations (if needed)
         if perturbation_std > 0:
-            # 对位移添加高斯噪声
+            # Add Gaussian noise to translation
             translation_noise = torch.randn(3, device=interp_pose.device) * perturbation_std
             interp_pose[:3, 3] += translation_noise
             
-            # 对旋转添加小的随机旋转
+            # Add small random rotation to orientation
             rotation_noise = torch.randn(3, device=interp_pose.device) * perturbation_std * 0.1
             noise_so3 = pp.so3(rotation_noise).Exp()
             current_rotation = pp.SO3(interp_pose[:3, :3].unsqueeze(0))
@@ -195,29 +179,29 @@ def se3_interpolate_to_target(
     t: float = 0.5
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    SE(3)插帧：从源相机pose插帧到目标pose的t位置
-    使用纯PyTorch实现，不依赖pypose
-    
+    SE(3) interpolation: interpolate from the source camera pose to the target pose at parameter t.
+    Implemented purely in PyTorch, without pypose dependency.
+
     Args:
-        source_pose: 源相机pose [4, 4] - 作为SE(3)起点
-        source_K: 源相机内参 [3, 3]
-        target_pose: 目标相机pose [4, 4] - 作为插帧目标点
-        target_K: 目标相机内参 [3, 3]
-        t: 插帧参数，范围[0, 1]，默认0.5表示中点
-        
+        source_pose: source camera pose [4, 4] — SE(3) start
+        source_K: source camera intrinsics [3, 3]
+        target_pose: target camera pose [4, 4] — interpolation endpoint
+        target_K: target camera intrinsics [3, 3]
+        t: interpolation parameter in [0, 1], default 0.5 for midpoint
+
     Returns:
-        interpolated_pose: 插帧后的pose [4, 4]
-        interpolated_K: 插帧后的内参 [3, 3]
+        interpolated_pose: interpolated pose [4, 4]
+        interpolated_K: interpolated intrinsics [3, 3]
     """
     device = source_pose.device
     
-    # 确保所有输入张量都在正确的设备上
+    # Ensure all input tensors are on the correct device
     source_pose = source_pose.to(device)
     target_pose = target_pose.to(device)
     source_K = source_K.to(device)
     target_K = target_K.to(device)
     
-    # 确保输入是正确的形状
+    # Ensure inputs have correct shapes
     if source_pose.dim() == 2:
         source_pose = source_pose.unsqueeze(0)  # [1, 4, 4]
     if target_pose.dim() == 2:
@@ -227,24 +211,24 @@ def se3_interpolate_to_target(
     if target_K.dim() == 2:
         target_K = target_K.unsqueeze(0)  # [1, 3, 3]
     
-    # 提取旋转矩阵和平移向量
+    # Extract rotation matrices and translation vectors
     source_R = source_pose[0, :3, :3]  # [3, 3]
     source_t = source_pose[0, :3, 3]   # [3]
     target_R = target_pose[0, :3, :3]  # [3, 3]
     target_t = target_pose[0, :3, 3]   # [3]
     
-    # 1. 平移向量线性插值
+    # 1. Linear interpolation for translation vector
     interpolated_t = (1 - t) * source_t + t * target_t  # [3]
     
-    # 2. 旋转矩阵球面线性插值 (SLERP)
+    # 2. Spherical linear interpolation (SLERP) for rotation matrices
     interpolated_R = slerp_rotation(source_R, target_R, t)  # [3, 3]
     
-    # 3. 构建插值后的pose矩阵
+    # 3. Construct the interpolated pose matrix
     interpolated_pose = torch.eye(4, device=device)
     interpolated_pose[:3, :3] = interpolated_R
     interpolated_pose[:3, 3] = interpolated_t
     
-    # 4. 内参线性插值
+    # 4. Linear interpolation for intrinsics
     interpolated_K = (1 - t) * source_K[0] + t * target_K[0]  # [3, 3]
     
     return interpolated_pose, interpolated_K
@@ -252,15 +236,15 @@ def se3_interpolate_to_target(
 
 def slerp_rotation(R1: torch.Tensor, R2: torch.Tensor, t: float) -> torch.Tensor:
     """
-    旋转矩阵的球面线性插值 (SLERP)
-    
+    Spherical linear interpolation (SLERP) for rotation matrices.
+
     Args:
-        R1: 第一个旋转矩阵 [3, 3]
-        R2: 第二个旋转矩阵 [3, 3]
-        t: 插值参数 [0, 1]
-        
+        R1: first rotation matrix [3, 3]
+        R2: second rotation matrix [3, 3]
+        t: interpolation parameter [0, 1]
+
     Returns:
-        interpolated_R: 插值后的旋转矩阵 [3, 3]
+        interpolated_R: interpolated rotation matrix [3, 3]
     """
     device = R1.device
     
@@ -279,21 +263,21 @@ def slerp_rotation(R1: torch.Tensor, R2: torch.Tensor, t: float) -> torch.Tensor
 
 def rotation_matrix_to_quaternion(R: torch.Tensor) -> torch.Tensor:
     """
-    将旋转矩阵转换为四元数 (w, x, y, z)
-    
+    Convert rotation matrix to quaternion (w, x, y, z).
+
     Args:
-        R: 旋转矩阵 [3, 3]
-        
+        R: rotation matrix [3, 3]
+
     Returns:
-        q: 四元数 [4] (w, x, y, z)
+        q: quaternion [4] (w, x, y, z)
     """
     device = R.device
     
-    # 确保输入是3x3矩阵
+    # Ensure input is a 3x3 matrix
     if R.shape != (3, 3):
-        raise ValueError(f"旋转矩阵形状必须是(3, 3)，得到{R.shape}")
+        raise ValueError(f"Rotation matrix must be shape (3, 3), got {R.shape}")
     
-    # 计算四元数分量
+    # Compute quaternion components
     trace = torch.trace(R)
     
     if trace > 0:
@@ -323,7 +307,7 @@ def rotation_matrix_to_quaternion(R: torch.Tensor) -> torch.Tensor:
     
     q = torch.stack([qw, qx, qy, qz], dim=0)  # [4] (w, x, y, z)
     
-    # 归一化四元数
+    # Normalize quaternion
     q = q / torch.norm(q)
     
     return q
@@ -331,26 +315,26 @@ def rotation_matrix_to_quaternion(R: torch.Tensor) -> torch.Tensor:
 
 def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
     """
-    将四元数转换为旋转矩阵
-    
+    Convert quaternion to rotation matrix.
+
     Args:
-        q: 四元数 [4] (w, x, y, z)
-        
+        q: quaternion [4] (w, x, y, z)
+
     Returns:
-        R: 旋转矩阵 [3, 3]
+        R: rotation matrix [3, 3]
     """
     device = q.device
     
-    # 确保输入是4维向量
+    # Ensure input is a 4D vector
     if q.shape != (4,):
-        raise ValueError(f"四元数形状必须是(4,)，得到{q.shape}")
+        raise ValueError(f"Quaternion must be shape (4,), got {q.shape}")
     
-    # 归一化四元数
+    # Normalize quaternion
     q = q / torch.norm(q)
     
     w, x, y, z = q[0], q[1], q[2], q[3]
     
-    # 计算旋转矩阵
+    # Compute rotation matrix
     R = torch.zeros(3, 3, device=device)
     
     R[0, 0] = 1 - 2 * (y*y + z*z)
@@ -370,39 +354,39 @@ def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
 
 def slerp_quaternion(q1: torch.Tensor, q2: torch.Tensor, t: float) -> torch.Tensor:
     """
-    四元数球面线性插值
-    
+    Spherical linear interpolation for quaternions.
+
     Args:
-        q1: 第一个四元数 [4] (w, x, y, z)
-        q2: 第二个四元数 [4] (w, x, y, z)
-        t: 插值参数 [0, 1]
-        
+        q1: first quaternion [4] (w, x, y, z)
+        q2: second quaternion [4] (w, x, y, z)
+        t: interpolation parameter [0, 1]
+
     Returns:
-        q_interp: 插值后的四元数 [4] (w, x, y, z)
+        q_interp: interpolated quaternion [4] (w, x, y, z)
     """
     device = q1.device
     
-    # 计算点积
+    # Compute dot product
     dot = torch.dot(q1, q2)
     
-    # 如果点积为负，取反其中一个四元数以选择较短的路径
+    # If dot < 0, flip one quaternion to choose the shorter path
     if dot < 0.0:
         q2 = -q2
         dot = -dot
     
-    # 如果四元数非常接近，使用线性插值
+    # If quaternions are very close, use linear interpolation
     if dot > 0.9995:
         q_interp = (1 - t) * q1 + t * q2
         return q_interp / torch.norm(q_interp)
     
-    # 计算角度
+    # Compute angle
     theta_0 = torch.acos(torch.clamp(dot, -1.0, 1.0))
     sin_theta_0 = torch.sin(theta_0)
     
     theta = theta_0 * t
     sin_theta = torch.sin(theta)
     
-    # 球面线性插值
+    # Spherical linear interpolation
     s0 = torch.cos(theta) - dot * sin_theta / sin_theta_0
     s1 = sin_theta / sin_theta_0
     
@@ -411,12 +395,12 @@ def slerp_quaternion(q1: torch.Tensor, q2: torch.Tensor, t: float) -> torch.Tens
     return q_interp
 
 
-# 测试函数
+# Test functions
 def test_hybrid_sampling():
-    """测试SE(3)插帧功能"""
+    """Test SE(3) interpolation functionality"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # 创建测试数据
+    # Create test data
     start_pose = torch.eye(4, device=device)
     start_pose[:3, 3] = torch.tensor([0, 0, 0], device=device, dtype=torch.float32)
     
@@ -427,28 +411,28 @@ def test_hybrid_sampling():
     K1[2, 2] = 1
     K2 = K1.clone()
     
-    print("🧪 测试SE(3)插帧功能")
+    print(" Test SE(3) interpolation functionality")
     
-    # 测试1: 正向插值 - 计算中点
-    print("\n📐 测试1: 正向插值 - 计算两个pose的中点")
+    # Test 1: forward interpolation — compute midpoint
+    print("\n Test 1: Forward interpolation — compute midpoint of two poses")
     midpoint_pose, midpoint_K = se3_interpolate_midpoint(start_pose, K1, end_pose, K2)
-    print(f"起点位移: {start_pose[:3, 3]}")
-    print(f"终点位移: {end_pose[:3, 3]}")
-    print(f"计算出的中点位移: {midpoint_pose[:3, 3]}")
-    print(f"预期中点位移: [1.0, 1.0, 1.0]")
+    print(f"Start translation: {start_pose[:3, 3]}")
+    print(f"End translation: {end_pose[:3, 3]}")
+    print(f"Computed midpoint translation: {midpoint_pose[:3, 3]}")
+    print(f"Expected midpoint translation: [1.0, 1.0, 1.0]")
     
-    # 测试2: 不同插值参数
-    print("\n📐 测试2: 不同插值参数")
+    # Test 2: different interpolation parameters
+    print("\n Test 2: Different interpolation parameters")
     for t in [0.25, 0.5, 0.75]:
         interp_pose, interp_K = se3_interpolate_to_target(start_pose, K1, end_pose, K2, t)
         expected_t = (1 - t) * start_pose[:3, 3] + t * end_pose[:3, 3]
         actual_t = interp_pose[:3, 3]
         error = torch.norm(expected_t - actual_t).item()
-        print(f"  t={t}: 预期位移={expected_t}, 实际位移={actual_t}, 误差={error:.6f}")
+        print(f"  t={t}: expected translation={expected_t}, actual translation={actual_t}, error={error:.6f}")
     
-    # 测试3: 旋转插值
-    print("\n📐 测试3: 旋转插值测试")
-    # 创建有旋转的测试数据
+    # Test 3: rotation interpolation
+    print("\n Test 3: Rotation interpolation test")
+    # Create test data with rotation
     angle = torch.pi / 4  # 45度
     cos_a, sin_a = torch.cos(angle), torch.sin(angle)
     
@@ -460,42 +444,42 @@ def test_hybrid_sampling():
     rotated_pose[:3, 3] = torch.tensor([1, 1, 0], device=device)
     
     interp_pose, _ = se3_interpolate_to_target(start_pose, K1, rotated_pose, K2, t=0.5)
-    print(f"起点旋转矩阵:\n{start_pose[:3, :3]}")
-    print(f"终点旋转矩阵:\n{rotated_pose[:3, :3]}")
-    print(f"插值旋转矩阵:\n{interp_pose[:3, :3]}")
+    print(f"Start rotation matrix:\n{start_pose[:3, :3]}")
+    print(f"End rotation matrix:\n{rotated_pose[:3, :3]}")
+    print(f"Interpolated rotation matrix:\n{interp_pose[:3, :3]}")
     
-    # 测试4: 反向插值测试
-    print("\n📐 测试4: 反向插值测试")
-    # 使用前面的插值结果作为中点
+    # Test 4: reverse interpolation
+    print("\n Test 4: Reverse interpolation test")
+    # Use the previous interpolation result as midpoint
     midpoint_pose = interp_pose
-    midpoint_K = K1  # 使用相同的K
+    midpoint_K = K1  # Use the same K
     
-    # 反向插值：从中点和终点反推起点
+    # Reverse interpolation: recover start from midpoint and end
     reconstructed_start_pose, reconstructed_start_K = se3_reverse_interpolate_from_midpoint(
         midpoint_pose, midpoint_K, rotated_pose, K2
     )
     
-    print(f"原始起点位移: {start_pose[:3, 3]}")
-    print(f"反推出的起点位移: {reconstructed_start_pose[:3, 3]}")
+    print(f"Original start translation: {start_pose[:3, 3]}")
+    print(f"Recovered start translation: {reconstructed_start_pose[:3, 3]}")
     translation_error = torch.norm(start_pose[:3, 3] - reconstructed_start_pose[:3, 3]).item()
-    print(f"位移误差: {translation_error:.6f}")
+    print(f"Translation error: {translation_error:.6f}")
     
-    print(f"原始起点旋转矩阵:\n{start_pose[:3, :3]}")
-    print(f"反推出的起点旋转矩阵:\n{reconstructed_start_pose[:3, :3]}")
+    print(f"Original start rotation matrix:\n{start_pose[:3, :3]}")
+    print(f"Recovered start rotation matrix:\n{reconstructed_start_pose[:3, :3]}")
     rotation_error = torch.norm(start_pose[:3, :3] - reconstructed_start_pose[:3, :3]).item()
-    print(f"旋转误差: {rotation_error:.6f}")
+    print(f"Rotation error: {rotation_error:.6f}")
     
-    # 测试5: 验证一致性
-    print("\n📐 测试5: 验证一致性 - 用反推的起点重新计算中点")
+    # Test 5: consistency verification
+    print("\n Test 5: Consistency check — recompute midpoint from recovered start")
     verify_midpoint_pose, verify_midpoint_K = se3_interpolate_midpoint(
         reconstructed_start_pose, reconstructed_start_K, rotated_pose, K2
     )
-    print(f"原始中点位移: {midpoint_pose[:3, 3]}")
-    print(f"验证中点位移: {verify_midpoint_pose[:3, 3]}")
+    print(f"Original midpoint translation: {midpoint_pose[:3, 3]}")
+    print(f"Verified midpoint translation: {verify_midpoint_pose[:3, 3]}")
     midpoint_error = torch.norm(midpoint_pose[:3, 3] - verify_midpoint_pose[:3, 3]).item()
-    print(f"中点位移误差: {midpoint_error:.6f}")
+    print(f"Midpoint translation error: {midpoint_error:.6f}")
     
-    print("\n✅ 测试完成")
+    print("\n Test completed")
 
 
 def generate_camera_trajectory(
@@ -505,42 +489,42 @@ def generate_camera_trajectory(
     cfg=None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    基于训练视角生成相机轨迹，对所有训练视角进行插帧
-    使用纯PyTorch实现，不依赖pypose
-    
+    Generate a camera trajectory from training views by interpolating all adjacent views.
+    Implemented purely in PyTorch, without pypose dependency.
+
     Args:
-        train_poses: 训练视角poses [N, 4, 4]
-        train_Ks: 训练视角内参 [N, 3, 3]
-        num_poses: 要生成的轨迹pose数量
-        cfg: 配置对象（可选）
-        
+        train_poses: training view poses [N, 4, 4]
+        train_Ks: training view intrinsics [N, 3, 3]
+        num_poses: number of trajectory poses to generate
+        cfg: optional configuration object
+
     Returns:
-        trajectory_poses: 生成的轨迹poses [num_poses, 4, 4]
-        trajectory_Ks: 生成的轨迹内参 [num_poses, 3, 3]
+        trajectory_poses: generated trajectory poses [num_poses, 4, 4]
+        trajectory_Ks: generated trajectory intrinsics [num_poses, 3, 3]
     """
-    print(f"🔧 开始生成相机轨迹，训练视角数量: {len(train_poses)}")
+    print(f" Start generating camera trajectory, number of training views: {len(train_poses)}")
     
     if len(train_poses) < 2:
-        print("❌ 训练视角不足，需要至少2个视角进行插值")
+        print(" Insufficient training views; need at least 2 views for interpolation")
         return None, None
     
     device = train_poses.device
     trajectory_poses = []
     trajectory_Ks = []
     
-    # 第一步：对所有相邻的训练视角进行插帧
-    print("📐 第一步：对相邻训练视角进行插帧")
+    # Step 1: interpolate across adjacent training views
+    print(" Step 1: Interpolate adjacent training views")
     for i in range(len(train_poses) - 1):
         pose1 = train_poses[i]      # [4, 4]
         pose2 = train_poses[i + 1]  # [4, 4]
         K1 = train_Ks[i]          # [3, 3]
         K2 = train_Ks[i + 1]      # [3, 3]
         
-        # 正向插帧：计算中点pose
+        # Forward interpolation: compute midpoint pose
         midpoint_pose, midpoint_K = se3_interpolate_midpoint(pose1, K1, pose2, K2)
         
-        # 添加到轨迹中：起点 -> 中点 -> 终点
-        if i == 0:  # 第一对，添加起点
+        # Add to trajectory: start -> midpoint -> end
+        if i == 0:  # first pair, add the start
             trajectory_poses.append(pose1)
             trajectory_Ks.append(K1)
         
@@ -549,11 +533,11 @@ def generate_camera_trajectory(
         trajectory_poses.append(pose2)
         trajectory_Ks.append(K2)
     
-    print(f"   第一步完成，生成了 {len(trajectory_poses)} 个轨迹点")
+    print(f"   Step 1 complete, generated {len(trajectory_poses)} trajectory points")
     trajectory_poses = torch.stack(trajectory_poses)  # [num_poses, 4, 4]
     trajectory_Ks = torch.stack(trajectory_Ks)        # [num_poses, 3, 3]
     
-    print(f"✅ 轨迹生成完成: {trajectory_poses.shape}")
+    print(f" Trajectory generation complete: {trajectory_poses.shape}")
     return trajectory_poses, trajectory_Ks
 
 

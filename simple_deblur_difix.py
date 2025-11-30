@@ -342,7 +342,7 @@ class DiFix3DProcessor:
                 # Ensure value range in [0,1]
                 if input_tensor.max() > 1.0 or input_tensor.min() < 0.0:
                     input_tensor = torch.clamp(input_tensor, 0.0, 1.0)
-                    print(f"   ⚠️ Value range adjusted to [0,1]")
+                    print(f"  Value range adjusted to [0,1]")
                 
                 # Convert to PIL image
                 image_np = (input_tensor.cpu().numpy() * 255).astype(np.uint8)
@@ -365,13 +365,13 @@ class DiFix3DProcessor:
                     
                     # Ensure input and reference sizes match exactly
                     if input_image.size != ref_image_pil.size:
-                        print(f"   🔧 Resize reference image to match input: {ref_image_pil.size} -> {input_image.size}")
+                        print(f"   Resize reference image to match input: {ref_image_pil.size} -> {input_image.size}")
                         ref_image_pil = ref_image_pil.resize(input_image.size, Image.Resampling.LANCZOS)
                     
                     # Check image size for memory concerns
                     width, height = input_image.size
                     if width * height > 1000000:  # large images may cause OOM
-                        print(f"   ⚠️ Large image size ({width}x{height}); may cause memory issues")
+                        print(f"    Large image size ({width}x{height}); may cause memory issues")
                     
                     # Use single image, avoid creating batch
                     try:
@@ -398,7 +398,7 @@ class DiFix3DProcessor:
                         ).images
                         output_image = output_images[0]
                 else:
-                    print(f"   🚫 No reference image; run DiFix3D directly")
+                    print(f"    No reference image; run DiFix3D directly")
                     
                     try:
                         output_image = self.pipeline(
@@ -433,7 +433,7 @@ class DiFix3DProcessor:
                 if image_tensor.dim() == 4:
                     output_tensor = output_tensor.unsqueeze(0)  # [1, H, W, 3]
                 
-                print(f"✅ DiFix3D processing completed:")
+                print(f" DiFix3D processing completed:")
                 print(f"   Final output shape: {output_tensor.shape}")
                 print(f"   Size change: {original_size} -> {output_tensor.shape[1:3] if output_tensor.dim() == 4 else output_tensor.shape[:2]}")
                 
@@ -446,7 +446,7 @@ class DiFix3DProcessor:
                 return output_tensor
                 
         except Exception as e:
-            print(f"⚠️ DiFix3D processing failed: {e}")
+            print(f" DiFix3D processing failed: {e}")
             print(f"   Input tensor shape: {image_tensor.shape}, dtype: {image_tensor.dtype}")
             print(f"   Error details: {str(e)}")
             
@@ -469,11 +469,11 @@ class DiFix3DProcessor:
                     if image_tensor.dim() == 4:
                         output_tensor = output_tensor.unsqueeze(0)
                     
-                    print(f"   ✅ Single-image processing succeeded")
+                    print(f"   Single-image processing succeeded")
                     return output_tensor
                     
                 except Exception as e2:
-                    print(f"   ❌ Single-image processing also failed: {e2}")
+                    print(f"   Single-image processing also failed: {e2}")
             
             # Check for tensor size mismatch errors
             elif "size of tensor" in str(e).lower() and "must match" in str(e).lower():
@@ -538,29 +538,29 @@ class DiFix3DProcessor:
             self.difix3d_comparison_dir = comparison_dir
         
         if not self.enabled or self.pipeline is None:
-            print("⚠️ DiFix3D disabled; cannot batch process")
+            print("DiFix3D disabled; cannot batch process")
             return []
         
         if not hasattr(trainset, '__len__') or len(trainset) == 0:
-            print("⚠️ Training set empty; cannot batch process")
+            print(" Training set empty; cannot batch process")
             return []
         
         # Ensure interpolation pool initialized
         if not self.is_initialized:
             self.initialize_interpolation_pool(trainset, rasterize_splats_fn, cfg)
             if not self.is_initialized:
-                print("❌ Interpolation pool initialization failed")
+                print(" Interpolation pool initialization failed")
                 return []
         
-        print(f"🎯 Step {step}: Start processing virtual view batch")
+        print(f" Step {step}: Start processing virtual view batch")
         
         enhanced_samples = []
-        quality_threshold = 0  # k <= 0 表示质量可接受
+        quality_threshold = 0  
         
         try:
             # 1. Choose interpolation strategy
             if len(self.available_interpolation_views) < 1:
-                print(f"❌ Not enough views in pool ({len(self.available_interpolation_views)} < 1); cannot interpolate")
+                print(f"Not enough views in pool ({len(self.available_interpolation_views)} < 1); cannot interpolate")
                 return []
             
             # Randomly choose two training views for forward interpolation
@@ -569,13 +569,13 @@ class DiFix3DProcessor:
             train_view2 = trainset[train_indices[1]]
             
             # Backward interpolation: choose two virtual views
-            print(f"   🔍 Virtual view pool: {len(self.available_interpolation_views)} available views")
+            print(f"  Virtual view pool: {len(self.available_interpolation_views)} available views")
             if len(self.available_interpolation_views) >= 2:
                 virtual_indices = torch.randperm(len(self.available_interpolation_views))[:2]
                 virtual_view1 = self.available_interpolation_views[virtual_indices[0]]
                 virtual_view2 = self.available_interpolation_views[virtual_indices[1]]
                 use_backward_interpolation = True
-                print(f"   ✅ Backward interpolation enabled: choose virtual views {virtual_indices[0]} and {virtual_indices[1]}")
+                print(f"  Backward interpolation enabled: choose virtual views {virtual_indices[0]} and {virtual_indices[1]}")
             else:
                 # If not enough virtual views, use forward interpolation only
                 use_backward_interpolation = False
@@ -588,7 +588,6 @@ class DiFix3DProcessor:
                 print(f"   Backward interpolation: skipped (need at least 2 virtual views)")
             
             # 🔍 Debug: check base views
-            print(f"   🔍 基础视角调试:")
             train_pos1 = train_view1['camtoworld'][:3, 3].to(self.device)
             train_pos2 = train_view2['camtoworld'][:3, 3].to(self.device)
             if use_backward_interpolation:
@@ -597,15 +596,14 @@ class DiFix3DProcessor:
                 
             
             # 2. Generate forward and backward interpolations
-            forward_alpha = 0.5  # 前向插值：在训练视角之间
-            backward_alpha = 1.5  # 后向插值：在虚拟视角之外（向外探索）
+            forward_alpha = 0.5  
+            backward_alpha = 1.5  
             
             quality_scores = []
             interpolated_poses = []
             
             # Forward interpolation between training views
-            print(f"   🎯 Forward interpolation between training views (α={forward_alpha})")
-            # 确保训练视角数据在正确的设备上
+            print(f"   Forward interpolation between training views (α={forward_alpha})")
             train_pose1 = train_view1["camtoworld"].to(self.device)
             train_K1 = train_view1["K"].to(self.device)
             train_pose2 = train_view2["camtoworld"].to(self.device)
@@ -621,8 +619,7 @@ class DiFix3DProcessor:
             # Backward interpolation: outside virtual views (exploration)
             interpolated_pose_backward = None
             if use_backward_interpolation:
-                print(f"   🎯 Backward interpolation: explore outside virtual views (α={backward_alpha})")
-                # 确保虚拟视角数据在正确的设备上
+                print(f"  Backward interpolation: explore outside virtual views (α={backward_alpha})")
                 virtual_pose1 = virtual_view1["pose"].to(self.device)
                 virtual_K1 = virtual_view1["K"].to(self.device)
                 virtual_pose2 = virtual_view2["pose"].to(self.device)
@@ -642,10 +639,10 @@ class DiFix3DProcessor:
                 virtual_pos1 = virtual_pose1[:3, 3]
                 virtual_pos2 = virtual_pose2[:3, 3]
             else:
-                print(f"   🚫 Backward interpolation: skipped (not enough virtual views)")
+                print(f"   Backward interpolation: skipped (not enough virtual views)")
             
             # 3. Generate interpolated frames
-            print(f"   ✅ Start generating {cfg.virtual_view_poses_per_step} interpolated frames")
+            print(f"   Start generating {cfg.virtual_view_poses_per_step} interpolated frames")
             
             for i in range(cfg.virtual_view_poses_per_step):
                 # 交替生成前向和后向插值
@@ -703,7 +700,7 @@ class DiFix3DProcessor:
                         )
                         direction = "forward-random"
                 
-                print(f"   🎯 Generate {direction} interpolation frame (α={alpha:.3f})")
+                print(f"    Generate {direction} interpolation frame (α={alpha:.3f})")
                 
                 # 🔍 Debug: check interpolated camera position
                 interp_pos = interpolated_pose[:3, 3]
@@ -725,15 +722,14 @@ class DiFix3DProcessor:
                     height, width = train_view1["image"].shape[:2]  # [H, W]
                     print(f"     3D image shape: [{height}, {width}, 3]")
                 else:
-                    print(f"     ⚠️ Unexpected image shape: {train_view1['image'].shape}")
-                    # 使用默认尺寸
-                    height, width = 400, 600  # 假设是400x600
+                    print(f"     Unexpected image shape: {train_view1['image'].shape}")
+                    height, width = 400, 600 
                     print(f"     Use default size: height={height}, width={width}")
                 
                 # Dataset __getitem__ returns image as [H, W, 3]; use [:2] for size
                 if len(train_view1["image"].shape) == 3:
                     height, width = train_view1["image"].shape[:2]  # [H, W]
-                    print(f"     ✅ Use 3D image shape: [{height}, {width}, 3]")
+                    print(f"    Use 3D image shape: [{height}, {width}, 3]")
                 
                 print(f"     Final extracted height: {height}, width: {width}")
                 
@@ -778,22 +774,22 @@ class DiFix3DProcessor:
                     ref_image_for_interp = self.load_ref_image(nearest_train_idx, trainset)
                     
                     if ref_image_for_interp is not None:
-                        print(f"   📷 Loaded reference image from directory (train_idx={nearest_train_idx})")
-                        print(f"   🔍 ref_image_for_interp shape: {ref_image_for_interp.shape}")
-                        print(f"   🔍 ref_image_for_interp device: {ref_image_for_interp.device}")
+                        print(f"    Loaded reference image from directory (train_idx={nearest_train_idx})")
+                        print(f"   ref_image_for_interp shape: {ref_image_for_interp.shape}")
+                        print(f"   ref_image_for_interp device: {ref_image_for_interp.device}")
                     else:
-                        print(f"   ⚠️ Cannot load reference image (train_idx={nearest_train_idx}); will not use reference")
+                        print(f"    Cannot load reference image (train_idx={nearest_train_idx}); will not use reference")
                 else:
-                    print(f"   🚫 Not using reference image for DiFix3D")
+                    print(f"    Not using reference image for DiFix3D")
                 
                 
                 # Ensure render format correct; handle RGB+ED 4-channel output
                 if renders_interp[0].dim() != 3:
-                    print(f"     ⚠️ Render result dims incorrect; skip DiFix3D processing")
-                    enhanced_interp = renders_interp[0]  # 直接使用原始渲染结果
+                    print(f"     Render result dims incorrect; skip DiFix3D processing")
+                    enhanced_interp = renders_interp[0]  
                 elif renders_interp[0].shape[-1] == 4:
                     # RGB+ED: use first 3 channels (RGB) for DiFix3D
-                    print(f"     🔧 RGB+ED: extract RGB channels for DiFix3D")
+                    print(f"    RGB+ED: extract RGB channels for DiFix3D")
                     rgb_interp = renders_interp[0][:, :, :3]  # [H, W, 3]
                     enhanced_interp = self.process_image(
                         rgb_interp,  # [H, W, 3]
@@ -818,7 +814,7 @@ class DiFix3DProcessor:
                         save_path=f"{self.difix3d_comparison_dir}/step_{step}_view_{i}_rgb"
                     )
                 else:
-                    print(f"     ⚠️ Incorrect render channel count; skip DiFix3D processing")
+                    print(f"     Incorrect render channel count; skip DiFix3D processing")
                     enhanced_interp = renders_interp[0]  # 直接使用原始渲染结果
                 
                 # Ensure all tensors on correct device (before scoring)
@@ -837,7 +833,7 @@ class DiFix3DProcessor:
                     _, quality_score = self.quality_scorer.score_pseudo_view(
                         original_rgb_for_score, enhanced_interp
                     )
-                    print(f"   📊 Interpolated frame quality score: k={quality_score:.4f}")
+                    print(f"   Interpolated frame quality score: k={quality_score:.4f}")
                     
                     # Save virtual view quality score data
                     score_data = {
@@ -851,7 +847,7 @@ class DiFix3DProcessor:
                         "timestamp": time.time()
                     }
                     self.virtual_view_scores.append(score_data)
-                    print(f"   💾 Saved virtual view quality score data")
+                    print(f"    Saved virtual view quality score data")
                     
                 except Exception as e:
                     print(f"   ⚠️ Quality scoring failed: {e}")
@@ -870,73 +866,70 @@ class DiFix3DProcessor:
                         "error": str(e)
                     }
                     self.virtual_view_scores.append(score_data)
-                    print(f"   💾 Saved virtual view quality score data (scoring failed)")
+                    print(f"    Saved virtual view quality score data (scoring failed)")
                 
                 # Ensure tensors on correct device
                 enhanced_interp_device = enhanced_interp.to(self.device)
                 
                 # Add to enhanced samples (for re-rendering and loss)
-                # ✅ Do not store original_image; store render params and re-render each step
                 sample = {
-                    "enhanced_image": enhanced_interp_device.detach().clone(),  # [H, W, 3] - DiFix增强后的图像（作为监督信号）
-                    "pose": interpolated_pose_device.detach().clone(),  # [4, 4] - 用于重新渲染
-                    "K": interp_K_device.detach().clone(),  # [3, 3] - 用于重新渲染
-                    "image_id": interp_img_id_device.detach().clone(),  # 用于重新渲染
-                    "width": width,  # 图像宽度
-                    "height": height,  # 图像高度
+                    "enhanced_image": enhanced_interp_device.detach().clone(),  
+                    "pose": interpolated_pose_device.detach().clone(),  
+                    "K": interp_K_device.detach().clone(),  
+                    "image_id": interp_img_id_device.detach().clone(),  
+                    "width": width,  
+                    "height": height,  
                     "view_idx": i,
                     "interpolated": True,
                     "alpha": alpha,
                     "nearest_train_idx": nearest_train_idx,
-                    "quality_score": quality_score,  # 添加质量评分
+                    "quality_score": quality_score,  
                 }
                 
-                # Debug: check device of tensors in sample
-                print(f"   🔍 样本{i}张量设备检查:")
                 for key, value in sample.items():
                     if isinstance(value, torch.Tensor):
-                        print(f"     {key}: 设备={value.device}, 形状={value.shape}")
+                        print(f"     {key}: {value.device}, {value.shape}")
                     else:
-                        print(f"     {key}: 非张量={type(value)}")
+                        print(f"     {key}: {type(value)}")
                 should_add_to_pool = False
                 # Forward interpolation: quality check (PSNR delta)
                 # Accept if PSNR delta within configured range
                 if (quality_score < cfg.interp_quality_psnr_max) and (quality_score > cfg.interp_quality_psnr_min):
                     should_add_to_pool = True
                     enhanced_samples.append(sample)
-                    print(f"   ✅ Forward interpolation accepted (PSNR Δ={quality_score:.4f}, range {cfg.interp_quality_psnr_min}~{cfg.interp_quality_psnr_max}); add to pool")
+                    print(f"    Forward interpolation accepted (PSNR Δ={quality_score:.4f}, range {cfg.interp_quality_psnr_min}~{cfg.interp_quality_psnr_max}); add to pool")
                 else:
-                    print(f"   ❌ Forward interpolation rejected (PSNR Δ={quality_score:.4f}, out of range {cfg.interp_quality_psnr_min}~{cfg.interp_quality_psnr_max}); not added")
+                    print(f"    Forward interpolation rejected (PSNR Δ={quality_score:.4f}, out of range {cfg.interp_quality_psnr_min}~{cfg.interp_quality_psnr_max}); not added")
                 
                 # Only accepted interpolations go to available pool
                 if should_add_to_pool:
                     self.available_interpolation_views.append({
-                        "pose": interpolated_pose_device,  # [4, 4] - 确保在正确设备上
-                        "K": interp_K_device,  # [3, 3] - 使用插值视角的内参
-                        "image_id": interp_img_id_device,  # 使用插值视角的图像ID
+                        "pose": interpolated_pose_device,  
+                        "K": interp_K_device,  
+                        "image_id": interp_img_id_device,  
                         "enhanced_image": enhanced_interp,
                         "source": f"interpolated_step_{step}_view_{i}",
-                        "quality_score": quality_score,  # 记录质量评分
-                        "direction": direction  # 记录插帧方向
+                        "quality_score": quality_score,  #
+                        "direction": direction  
                     })
-                    print(f"   🎯 Interpolation added to pool; current size: {len(self.available_interpolation_views)}")
+                    print(f"    Interpolation added to pool; current size: {len(self.available_interpolation_views)}")
                 else:
-                    print(f"   🚫 Interpolation not added; current pool size: {len(self.available_interpolation_views)}")
+                    print(f"    Interpolation not added; current pool size: {len(self.available_interpolation_views)}")
                 
-                print(f"   ✅ Interpolated frame {i+1}/{cfg.virtual_view_poses_per_step} processed (α={alpha:.3f}, reference train view={nearest_train_idx})")
-                print(f"   🔍 Virtual view pool updated: now {len(self.available_interpolation_views)} views")
+                print(f"    Interpolated frame {i+1}/{cfg.virtual_view_poses_per_step} processed (α={alpha:.3f}, reference train view={nearest_train_idx})")
+                print(f"    Virtual view pool updated: now {len(self.available_interpolation_views)} views")
             
         except Exception as e:
-            print(f"❌ Virtual view batch processing failed: {e}")
+            print(f" Virtual view batch processing failed: {e}")
             return []
         
         # Print processing results
         if enhanced_samples:
-            print(f"🎯 Step {step} virtual view batch completed!")
+            print(f" Step {step} virtual view batch completed!")
             print(f"   Generated {len(enhanced_samples)} enhanced views")
             print(f"   Interpolation pool now has {len(self.available_interpolation_views)} views")
         else:
-            print(f"⚠️ Step {step} virtual view batch failed; no successful views generated")
+            print(f" Step {step} virtual view batch failed; no successful views generated")
         
         return enhanced_samples
     
@@ -984,17 +977,17 @@ class DiFix3DProcessor:
             cfg: config object
         """
         if self.is_initialized:
-            print("🔄 Interpolation pool already initialized; skipping")
+            print(" Interpolation pool already initialized; skipping")
             return
         
-        print("🚀 Initializing interpolation pool and PSNR baseline...")
+        print(" Initializing interpolation pool and PSNR baseline...")
         
         # 1. Initialize VirtualViewQualityScorer
         self.quality_scorer = VirtualViewQualityScorer()
-        print("✅ VirtualViewQualityScorer initialized")
+        print("VirtualViewQualityScorer initialized")
         
         # 2. Process training views and compute fixed PSNR baseline
-        print("📊 Processing training views and computing PSNR baseline...")
+        print("Processing training views and computing PSNR baseline...")
         
         # Use first 3 training views as baseline
         num_training_views = min(3, len(trainset))
@@ -1031,7 +1024,7 @@ class DiFix3DProcessor:
                 )
                 
                 # Enhance training view using DiFix3D
-                print(f"   🎨 Start DiFix3D processing for training view {i+1}...")
+                print(f"    Start DiFix3D processing for training view {i+1}...")
                 
                 # Choose reference image: use another training view's render
                 ref_image_for_training = None
@@ -1064,11 +1057,11 @@ class DiFix3DProcessor:
                         )
                         
                         ref_image_for_training = ref_renders[0].to(self.device)  # [H, W, 3] - correct device
-                        print(f"   📷 Use training view {ref_idx+1} raw render as reference image")
+                        print(f"    Use training view {ref_idx+1} raw render as reference image")
                     else:
-                        print(f"   🚫 Cannot select a different training view; skip reference image")
+                        print(f"    Cannot select a different training view; skip reference image")
                 else:
-                    print(f"   🚫 Not using reference image for DiFix3D")
+                    print(f"    Not using reference image for DiFix3D")
                 
                 enhanced_train = self.process_image(
                     renders_train[0],  # [H, W, 3]
@@ -1079,14 +1072,14 @@ class DiFix3DProcessor:
                     ref_image=ref_image_for_training,  # 使用选择的参考图像
                     save_comparison=False
                 )
-                print(f"   🎨 DiFix3D processing completed")
+                print(f"    DiFix3D processing completed")
                 
                 # Collect data for PSNR computation
                 all_original_views.append(renders_train[0])
                 all_difix_views.append(enhanced_train)
                 
                 # 🔍 Debug: check image equality
-                print(f"   🔍 训练视角 {i+1} 调试信息:")
+                print(f"    训练视角 {i+1} 调试信息:")
                 print(f"     原始图像形状: {renders_train[0].shape}, 范围: [{renders_train[0].min():.4f}, {renders_train[0].max():.4f}]")
                 print(f"     DiFix图像形状: {enhanced_train.shape}, 范围: [{enhanced_train.min():.4f}, {enhanced_train.max():.4f}]")
                 
@@ -1095,10 +1088,10 @@ class DiFix3DProcessor:
                 print(f"     Image MSE: {mse.item():.8f}")
                 
                 if mse < 1e-8:
-                    print(f"     ⚠️ Warning: original and DiFix images nearly identical!")
+                    print(f"      Warning: original and DiFix images nearly identical!")
                     print(f"       DiFix3D processing might not be effective")
                 else:
-                    print(f"     ✅ Images differ; DiFix3D processing effective")
+                    print(f"      Images differ; DiFix3D processing effective")
                 
                 # Directly add to available interpolation pool (training views don't need scoring)
                 self.available_interpolation_views.append({
@@ -1109,14 +1102,14 @@ class DiFix3DProcessor:
                     "source": f"training_view_{i}"
                 })
                 
-                print(f"   ✅ Training view {i+1}/{num_training_views} processed")
+                print(f"    Training view {i+1}/{num_training_views} processed")
                 
             except Exception as e:
-                print(f"   ❌ Training view {i} processing failed: {e}")
+                print(f"    Training view {i} processing failed: {e}")
                 continue
         
         if len(all_original_views) == 0:
-            print("❌ No successfully processed training views; cannot compute PSNR baseline")
+            print(" No successfully processed training views; cannot compute PSNR baseline")
             return
         
         # 3. Compute fixed PSNR baseline (not updated later)
@@ -1127,17 +1120,17 @@ class DiFix3DProcessor:
             
             # Validate PSNR values
             if np.isinf(self.training_psnr_mean) or np.isnan(self.training_psnr_mean):
-                print(f"❌ Invalid PSNR mean: {self.training_psnr_mean}")
+                print(f" Invalid PSNR mean: {self.training_psnr_mean}")
                 print(f"   This often means DiFix3D output equals original image")
                 print(f"   Please verify DiFix3D works properly")
                 raise ValueError("PSNR mean is inf; DiFix3D may not be effective")
             
             if np.isinf(self.training_psnr_variance) or np.isnan(self.training_psnr_variance):
-                print(f"❌ Invalid PSNR variance: {self.training_psnr_variance}")
+                print(f"Invalid PSNR variance: {self.training_psnr_variance}")
                 print(f"   This often means all PSNR values are identical (inf)")
                 raise ValueError("PSNR variance is nan; images may be identical")
             
-            print(f"📊 Fixed PSNR baseline computed: mean={self.training_psnr_mean:.4f}, var={self.training_psnr_variance:.4f}")
+            print(f" Fixed PSNR baseline computed: mean={self.training_psnr_mean:.4f}, var={self.training_psnr_variance:.4f}")
             
             # Save baseline scores
             self.baseline_scores = {
@@ -1146,20 +1139,20 @@ class DiFix3DProcessor:
                 "training_views_count": len(all_original_views),
                 "timestamp": time.time()
             }
-            print(f"💾 Saved baseline scores: mean={self.training_psnr_mean:.4f}, var={self.training_psnr_variance:.4f}")
+            print(f" Saved baseline scores: mean={self.training_psnr_mean:.4f}, var={self.training_psnr_variance:.4f}")
             
         except Exception as e:
-            print(f"❌ PSNR baseline computation failed: {e}")
+            print(f" PSNR baseline computation failed: {e}")
             print(f"   Possible causes:")
             print(f"   1. DiFix3D may be ineffective and returned the original image")
             print(f"   2. Image data may be problematic")
             print(f"   3. Please check if DiFix3D model is loaded correctly")
             raise e
-        print(f"🔄 Available interpolation view pool initialized with {len(self.available_interpolation_views)} training views")
+        print(f" Available interpolation view pool initialized with {len(self.available_interpolation_views)} training views")
         
         # Mark as initialized
         self.is_initialized = True
-        print("✅ Interpolation pool and PSNR baseline initialization done")
+        print(" Interpolation pool and PSNR baseline initialization done")
     
 
 class DeblurDiFix3DRunner(Runner):
@@ -1193,8 +1186,8 @@ class DeblurDiFix3DRunner(Runner):
         # Extract scene_name from data_dir to build ref_image path
         self.scene_name = Path(cfg.data_dir).name
         self.ref_image_dir = f"{cfg.data_dir}/ref_image"
-        print(f"🔍 Scene name: {self.scene_name}")
-        print(f"🔍 Reference image directory: {self.ref_image_dir}")
+        print(f" Scene name: {self.scene_name}")
+        print(f" Reference image directory: {self.ref_image_dir}")
 
         # 加载数据
         self.parser = ColmapParser(
@@ -1211,7 +1204,7 @@ class DeblurDiFix3DRunner(Runner):
             print(f"[Dataset] Using configured training indices: {cfg.train_indices}")
         
         # Debug: check ColmapParser config
-        print(f"🔍 ColmapParser config check:")
+        print(f" ColmapParser config check:")
         print(f"   data_factor: {cfg.data_factor}")
         print(f"   scale_factor: {cfg.scale_factor}")
         print(f"   downscale_rounding_mode: {self.parser.downscale_rounding_mode}")
@@ -1220,7 +1213,7 @@ class DeblurDiFix3DRunner(Runner):
             print(f"   parser._downscale_factor: {self.parser._downscale_factor}")
         
         # Check image paths
-        print(f"🔍 Image path check:")
+        print(f" Image path check:")
         if hasattr(self.parser, 'image_paths') and len(self.parser.image_paths) > 0:
             sample_path = Path(self.parser.image_paths[0])
             print(f"   Sample image path: {sample_path}")
@@ -1228,9 +1221,9 @@ class DeblurDiFix3DRunner(Runner):
                 img = Image.open(sample_path)
                 print(f"   Sample image size: {img.size}")
             else:
-                print(f"   ⚠️ Sample image path does not exist!")
+                print(f"    Sample image path does not exist!")
         else:
-            print(f"   ⚠️ No image paths found!")
+            print(f"    No image paths found!")
 
         self.trainset = DeblurNerfDataset(self.parser, split="train")
         
@@ -1239,23 +1232,22 @@ class DeblurDiFix3DRunner(Runner):
         self.valset = DeblurNerfDataset(self.parser, split="val")
         self.testset = DeblurNerfDataset(self.parser, split="test")
         self.quality_scorer = VirtualViewQualityScorer(device=self.device)
-        print(f"✅ Virtual view quality scoring model initialized")
-        # 初始化DiFix3D处理器
+        print(f" Virtual view quality scoring model initialized")
         if cfg.enable_difix3d:
-            print("🎨 Initializing DiFix3D processor...")
+            print(" Initializing DiFix3D processor...")
             self.difix3d_processor = DiFix3DProcessor(
                 model_name=cfg.difix3d_model_name,
                 device=self.device,
                 ref_image_dir=self.ref_image_dir
             )
             if self.difix3d_processor.enabled:
-                print(f"✅ DiFix3D processor initialized")
+                print(f" DiFix3D processor initialized")
             else:
-                print(f"⚠️ DiFix3D processor initialization failed; disabling DiFix3D features")
+                print(f" DiFix3D processor initialization failed; disabling DiFix3D features")
                 cfg.enable_difix3d = False
         else:
             self.difix3d_processor = None
-            print("🚫 DiFix3D features disabled")
+            print(" DiFix3D features disabled")
 
         self.scene_scale = self.parser.scene_scale * 1.1 * cfg.global_scale
 
@@ -1280,7 +1272,7 @@ class DeblurDiFix3DRunner(Runner):
             world_rank=world_rank,
             world_size=world_size,
         )
-        print("模型初始化完成. 高斯点数量:", len(self.splats["means"]))
+        print(len(self.splats["means"]))
 
         # Densification strategy
         self.cfg.strategy.check_sanity(self.splats, self.optimizers)
@@ -1410,9 +1402,9 @@ class DeblurDiFix3DRunner(Runner):
             
             if train_cameras:
                 self.all_train_cameras = torch.stack(train_cameras).to(self.device)  # [N, 4, 4]
-                print(f"📊 Collected {len(train_cameras)} training camera poses")
+                print(f"Collected {len(train_cameras)} training camera poses")
             else:
-                print("⚠️ Unable to get camera poses from training dataset")
+                print("Unable to get camera poses from training dataset")
 
 
     def collect_virtual_camera_data(self, camera_poses: torch.Tensor = None, enhanced_samples: List[dict] = None, step: int = None, source: str = "unknown"):
@@ -1429,34 +1421,33 @@ class DeblurDiFix3DRunner(Runner):
             # BAD-Gaussians virtual cameras
             self.virtual_camera_batches.append(camera_poses.detach().clone())
             step_info = f"step {step}: " if step is not None else ""
-            print(f"📊 {step_info}collected {len(camera_poses)} {source} virtual cameras")
+            print(f"{step_info}collected {len(camera_poses)} {source} virtual cameras")
         elif enhanced_samples:
             # DiFix3D enhanced virtual cameras
             virtual_poses = []
-            print(f"🔍 Debug enhanced_samples device info:")
+            print(f"Debug enhanced_samples device info:")
             for i, sample in enumerate(enhanced_samples):
                 pose = sample["pose"]  # [4, 4] - no batch dim
                 print(f"   sample {i}: pose device={pose.device}, shape={pose.shape}, expected device={self.device}")
-                # 确保pose在正确的设备上
                 if pose.device != self.device:
-                    print(f"   🔧 sample {i}: moving pose from {pose.device} to {self.device}")
+                    print(f"   sample {i}: moving pose from {pose.device} to {self.device}")
                     pose = pose.to(self.device)
-                virtual_poses.append(pose.unsqueeze(0))  # 添加batch维度 [1, 4, 4]
+                virtual_poses.append(pose.unsqueeze(0)) 
             
             if virtual_poses:
-                print(f"🔍 Debug virtual_poses device info:")
+                print(f"Debug virtual_poses device info:")
                 for i, pose in enumerate(virtual_poses):
                     print(f"   virtual_poses[{i}]: device={pose.device}, shape={pose.shape}")
                 
                 try:
                     virtual_cameras_batch = torch.cat(virtual_poses, dim=0)  # [N, 4, 4]
                     self.virtual_camera_batches.append(virtual_cameras_batch)
-                    print(f"📊 Collected {len(virtual_poses)} {source} virtual cameras")
-                    print(f"   📊 Current virtual camera batch count: {len(self.virtual_camera_batches)}")
+                    print(f"Collected {len(virtual_poses)} {source} virtual cameras")
+                    print(f"    Current virtual camera batch count: {len(self.virtual_camera_batches)}")
                     total_virtual_cameras = sum(len(batch) for batch in self.virtual_camera_batches)
-                    print(f"   📊 Current total virtual cameras: {total_virtual_cameras}")
+                    print(f"    Current total virtual cameras: {total_virtual_cameras}")
                 except Exception as e:
-                    print(f"❌ torch.cat failed: {e}")
+                    print(f" torch.cat failed: {e}")
                     print(f"   Tensor devices: {[pose.device for pose in virtual_poses]}")
                     raise e
 
@@ -1519,7 +1510,7 @@ class DeblurDiFix3DRunner(Runner):
 
         # Collect training camera data before training starts
         if world_rank == 0:
-            print("📊 Start collecting training camera poses...")
+            print("Start collecting training camera poses...")
             self.collect_train_camera_data()
 
         # Training loop.
@@ -1551,13 +1542,12 @@ class DeblurDiFix3DRunner(Runner):
             height, width = pixels.shape[1:3]
 
             assert camtoworlds.shape[0] == 1
-            # 处理DDP包装的情况
             camera_optimizer = self.camera_optimizer.module if hasattr(self.camera_optimizer, 'module') else self.camera_optimizer
             camtoworlds = camera_optimizer.apply_to_cameras(camtoworlds, image_ids, "uniform")[0]
             assert camtoworlds.shape[0] == cfg.camera_optimizer.num_virtual_views
             Ks = Ks.tile((camtoworlds.shape[0], 1, 1))
             
-            # 📊 Disabled BAD-Gaussians virtual camera collection; keep DiFix3D only
+            #  Disabled BAD-Gaussians virtual camera collection; keep DiFix3D only
             # if step % 1000 == 0:  # 每1000步收集一次，避免数据过多
             #     self.collect_virtual_camera_data(camera_poses=camtoworlds, step=step, source="BAD-Gaussians")
 
@@ -1586,24 +1576,22 @@ class DeblurDiFix3DRunner(Runner):
                 bkgd = torch.rand(1, 3, device=device)
                 colors = colors + bkgd * (1.0 - alphas)
             
-            # 🎯 Compute depth smooth loss (every step)
+            
             depth_smooth_loss_value = 0.0
 
             # BAD-Gaussians: average the virtual views
             colors = colors.mean(0)[None]
             
-            # 🎯 Virtual view training strategy
+
             virtual_view_loss_to_add = 0.0  
 
-            # 🆕 Hybrid sampling strategy: unified virtual view training
-            print(f"🔍 Check hybrid sampling: step={step}, virtual_view_start_step={cfg.virtual_view_start_step}, enable_difix3d={cfg.enable_difix3d}, difix3d_processor={self.difix3d_processor is not None}, step%interval={step % cfg.virtual_view_interval}")
+            print(f" Check hybrid sampling: step={step}, virtual_view_start_step={cfg.virtual_view_start_step}, enable_difix3d={cfg.enable_difix3d}, difix3d_processor={self.difix3d_processor is not None}, step%interval={step % cfg.virtual_view_interval}")
             if step >= cfg.virtual_view_start_step and cfg.enable_difix3d and self.difix3d_processor is not None and step % cfg.virtual_view_interval == 0:
                 if step == cfg.virtual_view_start_step:
-                    print(f"🎯 Step {step}: first enable hybrid-sampling virtual view training")
+                    print(f" Step {step}: first enable hybrid-sampling virtual view training")
                 else:
-                    print(f"🎯 Step {step}: continue hybrid-sampling virtual view training")
+                    print(f" Step {step}: continue hybrid-sampling virtual view training")
                 
-                # 🆕 Use new virtual view batch processing strategy
                 enhanced_samples = self.difix3d_processor.process_virtual_views_batch(
                     trainset=self.trainset,
                     camera_optimizer=self.camera_optimizer,
@@ -1615,7 +1603,7 @@ class DeblurDiFix3DRunner(Runner):
                 )
                 
                 if enhanced_samples:
-                    # 🎯 Append enhanced samples to class attribute
+
                     if not hasattr(self, 'enhanced_data'):
                         self.enhanced_data = []
                     elif not isinstance(self.enhanced_data, list):
@@ -1630,15 +1618,14 @@ class DeblurDiFix3DRunner(Runner):
                         
                         self.enhanced_data.append(enhanced_sample)
                     
-                    # 📊 Collect virtual camera pose data
                     self.collect_virtual_camera_data(enhanced_samples=enhanced_samples, source="DiFix3D-Progressive")
                     
-                    print(f"🎯 Progressive interpolation done:")
+                    print(f"Progressive interpolation done:")
                     print(f"   Generated samples this round: {len(enhanced_samples)}")
                     print(f"   Total enhanced samples now: {len(self.enhanced_data)}")
-                    print(f"   📊 Current virtual camera batch count: {len(self.virtual_camera_batches)}")
+                    print(f"    Current virtual camera batch count: {len(self.virtual_camera_batches)}")
                     total_virtual_cameras = sum(len(batch) for batch in self.virtual_camera_batches)
-                    print(f"   📊 Current total virtual cameras: {total_virtual_cameras}")
+                    print(f"   Current total virtual cameras: {total_virtual_cameras}")
                     for i, sample in enumerate(enhanced_samples):
                         quality_score = sample.get('quality_score', 'N/A')
                         if isinstance(quality_score, (int, float)):
@@ -1646,11 +1633,11 @@ class DeblurDiFix3DRunner(Runner):
                         else:
                             print(f"   Sample {i}: image_id={sample['image_id'].item()}, quality_score={quality_score}")
                 else:
-                    print("⚠️ Progressive interpolation failed; no new samples")
+                    print(" Progressive interpolation failed; no new samples")
                     
-            # 🎯 After virtual view start step: compute virtual view loss
+            #  After virtual view start step: compute virtual view loss
             if step >= cfg.virtual_view_start_step and hasattr(self, 'enhanced_data'):
-                # 🆕 Randomly choose one enhanced sample for loss (reduce cost)
+                #  Randomly choose one enhanced sample for loss (reduce cost)
                 if isinstance(self.enhanced_data, list) and len(self.enhanced_data) > 0:
                     # Randomly pick a sample
                     import random
@@ -1658,7 +1645,7 @@ class DeblurDiFix3DRunner(Runner):
                     
                     loss_virtual_sample = 0.0
                     
-                    # 🎯 Key: re-render virtual view to connect gradients to current 3D GS
+                    #  Key: re-render virtual view to connect gradients to current 3D GS
                     virtual_pose = sample["pose"].unsqueeze(0).to(device)  # [1, 4, 4]
                     virtual_K = sample["K"].unsqueeze(0).to(device)  # [1, 3, 3]
                     virtual_image_id = sample["image_id"].unsqueeze(0).to(device)
@@ -1693,7 +1680,7 @@ class DeblurDiFix3DRunner(Runner):
                     if enhanced_image.dim() == 3:
                         enhanced_image = enhanced_image.unsqueeze(0)  # [1, H, W, 3]
                     
-                    # 🎯 Compute DiFix distillation loss: distill enhanced image into render
+                    #  Compute DiFix distillation loss: distill enhanced image into render
                     difix_distillation_loss = 0.0
                     if cfg.enable_difix_enhancement_loss:
                         # L1 loss
@@ -1726,7 +1713,7 @@ class DeblurDiFix3DRunner(Runner):
                     
                     # Add debug info
                     if step % 100 == 0:  # 每100步打印一次详细信息
-                        print(f"🔍 Virtual view loss debug (step {step}):")
+                        print(f" Virtual view loss debug (step {step}):")
                         print(f"   Available sample count: {len(self.enhanced_data)}")
                         print(f"   Current sample ID: {sample.get('image_id', 'unknown')}")
                         print(f"   Current sample quality score: {sample.get('quality_score', 'N/A'):.4f}")
@@ -1734,7 +1721,7 @@ class DeblurDiFix3DRunner(Runner):
                         print(f"   Weighted loss: {virtual_view_loss_to_add:.6f}")
                         print(f"   Weight: {cfg.virtual_view_loss_weight}")
                         if cfg.enable_depth_smooth_loss:
-                            print(f"   🔍 Depth smooth loss enabled, weight: {cfg.depth_smooth_lambda}")
+                            print(f"    Depth smooth loss enabled, weight: {cfg.depth_smooth_lambda}")
                     
 
             else:
@@ -1809,19 +1796,19 @@ class DeblurDiFix3DRunner(Runner):
                 scale_reg = 0.1 * scale_reg.mean()
                 loss += scale_reg
 
-            # 🎯 Add depth smooth loss
+            #  Add depth smooth loss
             if cfg.enable_depth_smooth_loss and step >= 25000 and depths is not None:
                 depth_smooth_loss_value = depth_smooth_loss_4neighbor(depths)
                 loss += depth_smooth_loss_value * cfg.depth_smooth_lambda
                 if step % 100 == 0:  # print every 100 steps
                     print(f"🔍 Depth smooth loss weight: {cfg.depth_smooth_lambda}, weighted: {depth_smooth_loss_value * cfg.depth_smooth_lambda:.6f}")
 
-            # 🎯 Critical: add virtual view loss after all other losses
+            #  Critical: add virtual view loss after all other losses
             loss += virtual_view_loss_to_add
             
             # If virtual view training enabled, print total loss info
             if virtual_view_loss_to_add > 0:
-                print(f"🎯 Final Loss: base={loss.item() - virtual_view_loss_to_add:.4f}, virtual={virtual_view_loss_to_add:.4f}, total={loss.item():.4f}")
+                print(f" Final Loss: base={loss.item() - virtual_view_loss_to_add:.4f}, virtual={virtual_view_loss_to_add:.4f}, total={loss.item():.4f}")
 
             loss.backward()
 
@@ -1975,32 +1962,17 @@ class DeblurDiFix3DRunner(Runner):
                 # Update the scene.
                 self.viewer.update(step, num_train_rays_per_step)
 
-        print(f"训练完成. 总时间: {time.time() - global_tic:.2f} seconds")
         
-        # 📊 训练结束后生成相机分布可视化
         if world_rank == 0:
-            print("📊 生成训练相机和DiFix3D虚拟相机分布图...")
-            print(f"   训练相机数量: {len(self.all_train_cameras) if self.all_train_cameras is not None else 0}")
-            print(f"   DiFix3D虚拟相机批次数量: {len(self.virtual_camera_batches)}")
             total_virtual_cameras = sum(len(batch) for batch in self.virtual_camera_batches)
-            print(f"   DiFix3D虚拟相机总数量: {total_virtual_cameras}")
             total_cameras = (len(self.all_train_cameras) if self.all_train_cameras is not None else 0) + total_virtual_cameras
-            print(f"   相机总数: {total_cameras}")
             
-            # 详细分析DiFix3D虚拟相机
             if self.virtual_camera_batches:
-                print("📊 DiFix3D虚拟相机详细分析:")
                 for i, batch in enumerate(self.virtual_camera_batches):
-                    print(f"   批次 {i+1}: {len(batch)} 个DiFix3D虚拟相机")
-                    print(f"     -> DiFix3D渐进式插值虚拟视角")
-                    # 显示每个批次的相机位置范围
                     if len(batch) > 0:
                         positions = batch[:, :3, 3].cpu().numpy()
-                        print(f"       位置范围: X=[{positions[:, 0].min():.3f}, {positions[:, 0].max():.3f}], Y=[{positions[:, 1].min():.3f}, {positions[:, 1].max():.3f}], Z=[{positions[:, 2].min():.3f}, {positions[:, 2].max():.3f}]")
-            else:
-                print("⚠️ 没有DiFix3D虚拟相机数据")
+
             
-            # 保存最终的质量评分数据
             if self.difix3d_processor is not None:
                 self.difix3d_processor.save_quality_scores_to_json(step=max_steps-1, result_dir=self.result_dir)
 
@@ -2025,7 +1997,6 @@ class DeblurDiFix3DRunner(Runner):
             image_ids = data["image_id"].to(device)
 
             # Apply learned mid-virtual-view pose optimizations
-            # 处理DDP包装的情况
             camera_optimizer = self.camera_optimizer.module if hasattr(self.camera_optimizer, 'module') else self.camera_optimizer
             camtoworlds = camera_optimizer.apply_to_cameras(camtoworlds, image_ids, "mid")
 
@@ -2071,15 +2042,12 @@ class DeblurDiFix3DRunner(Runner):
 
             stats = {k: torch.stack(v).mean().item() for k, v in metrics.items()}
             
-            # 添加最佳结果统计（新增功能）
             best_stats = {}
             for k, v in metrics.items():
                 if "psnr" in k or "ssim" in k:
                     best_stats[f"best_{k}"] = torch.stack(v).max().item()
                 elif "lpips" in k:
                     best_stats[f"best_{k}"] = torch.stack(v).min().item()
-            
-            # 添加每个样本的详细结果（新增功能）
             detailed_results = {}
             for k, v in metrics.items():
                 detailed_results[f"{k}_per_sample"] = [float(val.item()) for val in v]
@@ -2091,7 +2059,7 @@ class DeblurDiFix3DRunner(Runner):
                 }
             )
             
-            # 合并所有统计信息
+
             final_stats = {**stats, **best_stats, **detailed_results}
             
             print(
@@ -2099,16 +2067,16 @@ class DeblurDiFix3DRunner(Runner):
                 f"Time: {stats['ellipse_time']:.3f}s/image "
                 f"Number of GS: {stats['num_GS']}"
             )
-            # 打印最佳结果（新增功能）
+
            
             
-            # save stats as json（保持原有功能，但增加更多信息）
+            # save stats as json
             with open(f"{self.stats_dir}/{stage}_step{step:04d}.json", "w") as f:
                 json.dump(final_stats, f, indent=2)
             
-            # save stats to tensorboard（保持原有功能）
+            # save stats to tensorboard
             for k, v in final_stats.items():
-                if not k.endswith("_per_sample"):  # 只保存汇总指标到tensorboard
+                if not k.endswith("_per_sample"): 
                     self.writer.add_scalar(f"{stage}/{k}", v, step)
             self.writer.flush()
 
@@ -2256,7 +2224,7 @@ class DeblurDiFix3DRunner(Runner):
 
         # save stats to tensorboard
         for k, v in final_stats.items():
-            if not k.endswith("_per_sample"):  # 只保存汇总指标到tensorboard
+            if not k.endswith("_per_sample"):  
                 self.writer.add_scalar(f"{stage}/{k}", v, step)
         self.writer.flush()
 

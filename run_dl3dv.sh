@@ -79,9 +79,9 @@ run_trainer_experiment() {
     local exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
-        print_info "✅ Experiment completed: $scene_name with simple_trainer_deblur.py"
+        print_info " Experiment completed: $scene_name with simple_trainer_deblur.py"
     else
-        print_error "❌ Experiment failed: $scene_name with simple_trainer_deblur.py (exit code: $exit_code)"
+        print_error " Experiment failed: $scene_name with simple_trainer_deblur.py (exit code: $exit_code)"
     fi
     
     return $exit_code
@@ -116,7 +116,7 @@ main() {
         fi
         
         # Wait a bit to free GPU memory
-        print_info "⏸️  Waiting for GPU memory to be released..."
+        print_info "  Waiting for GPU memory to be released..."
         sleep 10
     done
     
