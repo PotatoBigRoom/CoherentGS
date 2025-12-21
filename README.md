@@ -5,7 +5,7 @@
 If you find this work useful, please consider starring the repo ⭐ to stay updated.
 </h5>
 <p align="center">
-<a href="https://arxiv.org/abs/2512.10369"><img src="https://img.shields.io/badge/Arxiv-2512.10369-b31b1b.svg?logo=arXiv" alt="arXiv"></a> -->
+<a href="https://arxiv.org/abs/2512.10369"><img src="https://img.shields.io/badge/Arxiv-2512.10369-b31b1b.svg?logo=arXiv" alt="arXiv"></a> 
 <a href="https://github.com/PotatoBigRoom/CoherentGS/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="License: MIT"></a>
 <a href="https://github.com/PotatoBigRoom/CoherentGS/stargazers"><img src="https://img.shields.io/github/stars/PotatoBigRoom/CoherentGS?style=flat&logo=github&logoColor=whitesmoke&label=Stars" alt="GitHub stars"></a>
 <a href="https://github.com/PotatoBigRoom/CoherentGS/network"><img src="https://img.shields.io/github/forks/PotatoBigRoom/CoherentGS?style=flat&logo=github&logoColor=whitesmoke&label=Forks" alt="GitHub forks"></a>
