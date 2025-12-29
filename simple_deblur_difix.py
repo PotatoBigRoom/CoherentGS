@@ -650,7 +650,7 @@ class DiFix3DProcessor:
                     # Forward interpolation: between training views
                     interpolated_pose = interpolated_pose_forward
                     direction = "forward"
-                    alpha = forward_alpha
+                    alpha = torch.rand(1).item() * 0.8 + 0.1
                 elif i == 1 and use_backward_interpolation:
                     # Backward interpolation: explore outside virtual views
                     interpolated_pose = interpolated_pose_backward
