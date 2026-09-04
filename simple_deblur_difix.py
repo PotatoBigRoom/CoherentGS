@@ -893,8 +893,8 @@ class DiFix3DProcessor:
                     else:
                         print(f"     {key}: {type(value)}")
                 should_add_to_pool = False
-                # Forward interpolation: quality check (PSNR delta)
-                # Accept if PSNR delta within configured range
+                # Keep only the informative, recoverable middle of the PSNR-delta band:
+                # low deltas are redundant with training views, while high deltas signal unreliable diffusion repair.
                 if (quality_score < cfg.interp_quality_psnr_max) and (quality_score > cfg.interp_quality_psnr_min):
                     should_add_to_pool = True
                     enhanced_samples.append(sample)
